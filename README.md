@@ -12,6 +12,8 @@ A command line tool to use chatgpt - currently only OpenAI API is supported.
 
 `zapgpt` is a minimalist CLI tool to chat with LLMs from your terminal. No bloated UI, just fast raw GPT magic, straight from the shell. With pre-cooked system prompt for Ethical hacking, code, file attachment and a good default prompt and usage tracking, I hope you find it useful. No extra features or frills. Modify it as you need it with a simple one file script.
 
+Updated to version v2.
+
 ## 💾 Requirements
 
 * Python 3.8+
@@ -54,6 +56,14 @@ python zapgpt.py
 * Easily customizable for your LLM endpoints
 * Show your current usage.
 * Optional pre-cooked system prompts.
+
+### v2 Features
+
+* Script now uses class and is much more well organized.
+* Prompts are not hard-coded in the script. You can simply drop in any new
+  system prompt in prompts folder and use it.
+* It should be easy to extend it to other API providers like OpenRouter. There
+  is some dummy code for other providers but only openai works for now.
 
 ## 🧪 Example
 
