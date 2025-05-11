@@ -96,7 +96,7 @@ def match_abbreviation(options: dict | list[str]):
 
 class BaseLLMClient:
 
-    def __init__(self, model: str, system_prompt: str = "", max_tokens: int = 1000, temperature: float = 0.7, output: str = ""):
+    def __init__(self, model: str, system_prompt: str = "", max_tokens: int = 1000, temperature: float = 0.7, output: str = "", file: str = None):
         self.model = model
         self.system_prompt = system_prompt
         self.max_tokens = max_tokens
@@ -105,6 +105,11 @@ class BaseLLMClient:
         self.current_script_path = str(current_script_path)
         self.prompts_path=self.current_script_path + "/prompts"
         self.output = output
+        logger.debug("File is set to {file=}")
+        if file:
+            self.file = file
+        else:
+            self.file = None
         logger.debug(f"Prompts path is {self.prompts_path=}")
         self.init_db()
         #logger.debug(f"{self.system_prompt=}")
@@ -145,8 +150,9 @@ class BaseLLMClient:
             messages.append({"role": "system", "content": self.system_prompt})
         messages.append({"role": "user", "content": query})
         if self.file:
+            logger.debug(f"File is set to {self.file=}")
             try:
-                with open(file, "r", encoding="utf-8") as f:
+                with open(self.file, "r", encoding="utf-8") as f:
                     file_content = f.read()
             except Exception as e:
                 logger.critical(f"❌ Failed to read file: {e}")
@@ -311,7 +317,7 @@ class BaseLLMClient:
 
 class OpenAIClient(BaseLLMClient):
     def __init__(self, model: str  = "gpt-4o-mini", api_key: str = None, file : str = None, temperature: int = 0.7, system_prompt : str = None, output: str = "", **kwargs):
-        super().__init__(model=model, system_prompt = system_prompt, temperature = temperature)
+        super().__init__(model=model, system_prompt = system_prompt, temperature = temperature, file=file)
         self.api_key = api_key
         # self.system_prompt = system_prompt
         #logger.debug(f"system prompt {self.system_prompt=}")
@@ -460,7 +466,7 @@ class OpenAIClient(BaseLLMClient):
 
         self.record_usage(model=self.model, prompt_tokens=self.prompt_tokens, completion_tokens=completion_tokens, total_tokens=total_tokens, cost=cost, query=self.query, provider="openai")
 
-    def get_usage(days=10):
+    def get_usage(self, days=10):
         """
         Use OpenAI to get usage
         """
@@ -489,7 +495,8 @@ class OpenAIClient(BaseLLMClient):
             for i in data["data"]:
                 for r in i["results"]:
                     logger.debug(f"New Line: {r=}")
-                    table.append([r["line_item"], r["amount"]["value"], r["project_id"]])
+                    table.append([r["line_item"], f'{r["amount"]["value"]:.8f}', r["project_id"]])
+                    logger.debug(f'''Adding [r["line_item"], f'{r["amount"]["value"]:.10f}', r["project_id"]])''')
                     a = a + r["amount"]["value"]
                     # print (f"New Total: {a}")
 
@@ -503,7 +510,7 @@ class OpenAIClient(BaseLLMClient):
         headers = ["Model", "Total Cost", "Porject ID"]
         # print(tabulate(table, headers=headers, tablefmt="github"))
         print(tabulate(table, headers=headers, tablefmt="fancy_grid"))
-        print(f"\nTotal Cost: {a}")
+        print(f"\nTotal Cost: {a:.8f}")
 
     def get_key(self, env_var: str):
         api_key = os.getenv(env_var)
@@ -520,15 +527,51 @@ class OpenAIClient(BaseLLMClient):
 class OpenRouterClient(OpenAIClient):
 
     def get_endpoint(self) -> str:
-        return "https://openrouter.ai/api/v1/chat/completions"
+        return "https://openrouter.ai/api/v1/"
 
-    def __init__(self, model: str, api_key: str, **kwargs):
-        super().__init__(model, api_key, **kwargs)
-        self.get_key("OPENAI_API_KEY")
+    def __init__(self, model: str  = "gpt-4o-mini", api_key: str = None, file : str = None, temperature: int = 0.7, system_prompt : str = None, output: str = "",  **kwargs):
+        super().__init__(model=model, system_prompt = system_prompt, temperature = temperature, file=file)
+        self.get_key("OPENROUTER_KEY")
+        self.price = ""
+        # self.system_prompt = system_prompt
+        #logger.debug(f"system prompt {self.system_prompt=}")
         self.client = OpenAI(
-            api_key = self.api_key
+            api_key = self.api_key,
+            base_url=self.get_endpoint()
         )
+        logger.debug(f"File is set to {self.file}")
+        if output:
+            self.output = output
+            logger.debug(f"No output on screen, {self.output=}")
 
+    def get_usage(self,days=10):
+        url = f"{self.get_endpoint()}credits"
+        r = requests.get(url, headers={"Authorization": f"Bearer {self.api_key}"})
+        d = r.json()["data"]
+        print (f"Total Credits: {d['total_credits']}")
+        print (f"Total Usage: {d['total_usage']:.6f}")
+
+    def print_model_pricing_table(self,pricing_data= None):
+        # Build list with calculated total cost per 1000 prompt + 1000 output tokens
+        url = f"{self.get_endpoint()}pricing"
+        r = requests.get(url, headers={"Authorization": f"Bearer {self.api_key}", "Content-Type":"application/json"})
+        print (r.text)
+        print (r.json())
+
+        table = []
+        for model, prices in pricing_data.items():
+            prompt_cost = prices.get("prompt_tokens", 0)
+            output_cost = prices.get("completion_tokens", 0)
+            total = prompt_cost + output_cost
+            table.append([model, prompt_cost, output_cost, total])
+
+        # Sort by total cost
+        table.sort(key=lambda x: x[3])
+
+        # Print the table
+        headers = ["Model", "Prompt ($/1k)", "Output ($/1k)", "Total ($/1k in + out)"]
+        # print(tabulate(table, headers=headers, tablefmt="github"))
+        print(tabulate(table, headers=headers, tablefmt="fancy_grid"))
 
 class TogetherClient(OpenAIClient):
     def get_endpoint(self) -> str:
@@ -615,7 +658,7 @@ def main():
     )
     parser.add_argument("-c", "--chat-id", default=None, help="Continue in same chat session")
     parser.add_argument(
-        "-p", "--provider", choices=provider_map.keys(), default="openai",
+        "-p", "--provider", choices=provider_map.keys(), default="openrouter",
         help="Select LLM provider"
     )
     parser.add_argument(
@@ -672,7 +715,7 @@ def main():
         return
 
     if args.usage:
-        OpenAIClient.get_usage(args.usage)
+        llm_client.get_usage(args.usage)
         return
 
     if args.history:
