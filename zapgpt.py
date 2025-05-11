@@ -23,8 +23,9 @@ import json
 import sqlite3
 from pathlib import Path
 from typing import List, Dict, Optional
-from rich.console import Console
 from rich.logging import RichHandler
+from rich.console import Console
+from rich.table import Table
 import logging
 import time
 from pygments import highlight
@@ -44,6 +45,25 @@ logger = logging.getLogger("llm")
 
 current_script_path =  str(Path(__file__).resolve().parent)
 DB_FILE = os.path.expanduser(current_script_path + "/gpt_usage.db")
+
+def pretty(x):
+    return f"{x:.10f}".rstrip("0").rstrip(".")
+
+def color_cost(value):
+    try:
+        num = float(value)
+        if num == 0:
+            return f"[green]{num:.10f}[/green]"
+        else:
+            return f"[cyan]{num:.10f}[/cyan]"
+    except ValueError:
+        return f"[red]Invalid[/red]"
+
+def fmt_colored(value):
+    num = float(value)
+    color = "green" if num == 0 else "cyan"
+    return f"[{color}]{num:.10f}[/{color}]"
+
 
 def get_filenames_without_extension(folder_path):
     # List to hold the filenames without the .txt extension
@@ -225,8 +245,10 @@ class BaseLLMClient:
         conn.close()
 
 
-    def list_available_models(self):
+    def list_available_models(self, batch=False):
         models = self.client.models.list()
+        if batch:
+            return models
         print("\n📦 Available OpenAI Models:")
         for m in models.data:
             # Convert created to humban-readable formatting
@@ -234,22 +256,49 @@ class BaseLLMClient:
             print(f"* {m.id}, Owner: {m.owned_by}, Created: {m.created}")
 
 
+    # def print_model_pricing_table(self,pricing_data):
+    #     # Build list with calculated total cost per 1000 prompt + 1000 output tokens
+    #     table = []
+    #     for model, prices in pricing_data.items():
+    #         logger.debug(f"{prices=}")
+    #         pc = prices.get("prompt_tokens", 0)
+    #         prompt_cost = float(pc) if isinstance(pc, str) else pc
+    #         oc = prices.get("completion_tokens", 0)
+    #         output_cost = float(oc) if isinstance(oc, str) else oc
+    #         total = (prompt_cost + output_cost)
+    #         logger.debug(f"{prompt_cost} - {output_cost} - {total}")
+    #         logger.debug(f"{pretty(prompt_cost)} - {pretty(output_cost)} - {pretty(total)}")
+    #         table.append([model, pretty(prompt_cost), pretty(output_cost), pretty(total)])
+
+    #     # Sort by total cost
+    #     table.sort(key=lambda x: x[3])
+
+    #     # Print the table
+    #     headers = ["Model", "Prompt ($/1k)", "Output ($/1k)", "Total ($/1k in + out)"]
+    #     # print(tabulate(table, headers=headers, tablefmt="github"))
+    #    print(tabulate(table, headers=headers, tablefmt="fancy_grid"))
     def print_model_pricing_table(self,pricing_data):
         # Build list with calculated total cost per 1000 prompt + 1000 output tokens
-        table = []
-        for model, prices in pricing_data.items():
-            prompt_cost = prices.get("prompt_tokens", 0)
-            output_cost = prices.get("completion_tokens", 0)
-            total = prompt_cost + output_cost
-            table.append([model, prompt_cost, output_cost, total])
+        rich_table = Table(title="Model Usage Costs")
 
-        # Sort by total cost
-        table.sort(key=lambda x: x[3])
+        rich_table.add_column("Model")
+        rich_table.add_column("Prompt Cost")
+        rich_table.add_column("Output Cost")
+        rich_table.add_column("Total")
 
-        # Print the table
-        headers = ["Model", "Prompt ($/1k)", "Output ($/1k)", "Total ($/1k in + out)"]
-        # print(tabulate(table, headers=headers, tablefmt="github"))
-        print(tabulate(table, headers=headers, tablefmt="fancy_grid"))
+        sorted_data = sorted(pricing_data.items(), key=lambda x: sum(float(v) for v in x[1].values()))   # or x[1][3] if total is at index 3
+        for model, prices in sorted_data:
+            logger.debug(f"{prices=}")
+            pc = prices.get("prompt_tokens", 0)
+            prompt_cost = float(pc) if isinstance(pc, str) else pc
+            oc = prices.get("completion_tokens", 0)
+            output_cost = float(oc) if isinstance(oc, str) else oc
+            total = (prompt_cost + output_cost)
+            logger.debug(f"{prompt_cost} - {output_cost} - {total}")
+            logger.debug(f"{pretty(prompt_cost)} - {pretty(output_cost)} - {pretty(total)}")
+            rich_table.add_row(model, fmt_colored(prompt_cost), fmt_colored(output_cost), fmt_colored(total))
+
+        console.print(rich_table)
 
     def get_tokenizer(self, model_name: str):
         """
@@ -314,6 +363,14 @@ class BaseLLMClient:
             )
         else:
             return (prompt_tokens / 1000 * 0.03) + (completion_tokens / 1000 * 0.03)
+
+    def get_key(self, env_var: str):
+        api_key = os.getenv(env_var)
+        if api_key is None:
+            raise EnvironmentError(f"Missing required environment variable: {env_var}")
+        else:
+            self.api_key = api_key
+
 
 class OpenAIClient(BaseLLMClient):
     def __init__(self, model: str  = "gpt-4o-mini", api_key: str = None, file : str = None, temperature: int = 0.7, system_prompt : str = None, output: str = "", **kwargs):
@@ -512,19 +569,12 @@ class OpenAIClient(BaseLLMClient):
         print(tabulate(table, headers=headers, tablefmt="fancy_grid"))
         print(f"\nTotal Cost: {a:.8f}")
 
-    def get_key(self, env_var: str):
-        api_key = os.getenv(env_var)
-        if api_key is None:
-            raise EnvironmentError(f"Missing required environment variable: {env_var}")
-        else:
-            self.api_key = api_key
-
 
     def print_model_pricing_table(self):
         super().print_model_pricing_table(self.price)
 
 
-class OpenRouterClient(OpenAIClient):
+class OpenRouterClient(BaseLLMClient):
 
     def get_endpoint(self) -> str:
         return "https://openrouter.ai/api/v1/"
@@ -532,7 +582,6 @@ class OpenRouterClient(OpenAIClient):
     def __init__(self, model: str  = "gpt-4o-mini", api_key: str = None, file : str = None, temperature: int = 0.7, system_prompt : str = None, output: str = "",  **kwargs):
         super().__init__(model=model, system_prompt = system_prompt, temperature = temperature, file=file)
         self.get_key("OPENROUTER_KEY")
-        self.price = ""
         # self.system_prompt = system_prompt
         #logger.debug(f"system prompt {self.system_prompt=}")
         self.client = OpenAI(
@@ -544,6 +593,14 @@ class OpenRouterClient(OpenAIClient):
             self.output = output
             logger.debug(f"No output on screen, {self.output=}")
 
+        self.price = {}
+        models = self.list_available_models(batch=True)
+        for m in models.data:
+            logger.debug(f"{m.pricing}")
+            self.price[m.id] = { "prompt_tokens":m.pricing["prompt"], "completion_tokens": m.pricing["completion"]}
+
+
+
     def get_usage(self,days=10):
         url = f"{self.get_endpoint()}credits"
         r = requests.get(url, headers={"Authorization": f"Bearer {self.api_key}"})
@@ -551,27 +608,29 @@ class OpenRouterClient(OpenAIClient):
         print (f"Total Credits: {d['total_credits']}")
         print (f"Total Usage: {d['total_usage']:.6f}")
 
-    def print_model_pricing_table(self,pricing_data= None):
-        # Build list with calculated total cost per 1000 prompt + 1000 output tokens
-        url = f"{self.get_endpoint()}pricing"
-        r = requests.get(url, headers={"Authorization": f"Bearer {self.api_key}", "Content-Type":"application/json"})
-        print (r.text)
-        print (r.json())
+    def print_model_pricing_table(self):
+        super().print_model_pricing_table(self.price)
+    # def print_model_pricing_table(self,pricing_data= None):
+    #     # Build list with calculated total cost per 1000 prompt + 1000 output tokens
+    #     url = f"{self.get_endpoint()}pricing"
+    #     r = requests.get(url, headers={"Authorization": f"Bearer {self.api_key}", "Content-Type":"application/json"})
+    #     print (r.text)
+    #     print (r.json())
 
-        table = []
-        for model, prices in pricing_data.items():
-            prompt_cost = prices.get("prompt_tokens", 0)
-            output_cost = prices.get("completion_tokens", 0)
-            total = prompt_cost + output_cost
-            table.append([model, prompt_cost, output_cost, total])
+    #     table = []
+    #     for model, prices in pricing_data.items():
+    #         prompt_cost = prices.get("prompt_tokens", 0)
+    #         output_cost = prices.get("completion_tokens", 0)
+    #         total = prompt_cost + output_cost
+    #         table.append([model, prompt_cost, output_cost, total])
 
-        # Sort by total cost
-        table.sort(key=lambda x: x[3])
+    #     # Sort by total cost
+    #     table.sort(key=lambda x: x[3])
 
-        # Print the table
-        headers = ["Model", "Prompt ($/1k)", "Output ($/1k)", "Total ($/1k in + out)"]
-        # print(tabulate(table, headers=headers, tablefmt="github"))
-        print(tabulate(table, headers=headers, tablefmt="fancy_grid"))
+    #     # Print the table
+    #     headers = ["Model", "Prompt ($/1k)", "Output ($/1k)", "Total ($/1k in + out)"]
+    #     # print(tabulate(table, headers=headers, tablefmt="github"))
+    #     print(tabulate(table, headers=headers, tablefmt="fancy_grid"))
 
 class TogetherClient(OpenAIClient):
     def get_endpoint(self) -> str:
