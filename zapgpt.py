@@ -18,6 +18,7 @@
 import os
 import sys
 import argparse
+from openai.resources import BatchesWithRawResponse
 import requests
 import json
 import sqlite3
@@ -45,6 +46,99 @@ logger = logging.getLogger("llm")
 
 current_script_path =  str(Path(__file__).resolve().parent)
 DB_FILE = os.path.expanduser(current_script_path + "/gpt_usage.db")
+
+model_prompts = {
+    "red_team": {
+        "model": "openai/gpt-4-turbo",  # OpenRouter model
+        "system_prompt": "You are a penetration tester in a red team. Use your knowledge of exploits and attack vectors to craft effective PoC exploits for services."
+    },
+    "reverse_eng": {
+        "model": "anthropic/claude-3-opus",  # OpenRouter model
+        "system_prompt": "Analyze the binary code and provide insights into potential vulnerabilities or weaknesses."
+    },
+    "payload_creation": {
+        "model": "mistralai/mixtral-8x7b-instruct",  # OpenRouter model
+        "system_prompt": "Create a payload for penetration testing that targets a specific system vulnerability."
+    },
+    "cyber_awareness": {
+        "model": "anthropic/claude-3-sonnet",  # OpenRouter model
+        "system_prompt": "Write a professional post on defending against ransomware attacks in corporate environments."
+    },
+    "phishing_campaign": {
+        "model": "openai/gpt-3.5-turbo",  # OpenRouter model
+        "system_prompt": "Assist in setting up a phishing campaign, including email crafting, social engineering tactics, and payload deployment."
+    },
+    "vuln_assessment": {
+        "model": "openai/gpt-4",  # OpenRouter model
+        "system_prompt": "Create a comprehensive vulnerability assessment report based on the findings from a recent penetration test."
+    },
+    "exploit_dev": {
+        "model": "anthropic/claude-3",  # OpenRouter model
+        "system_prompt": "Provide guidance on developing an exploit for a discovered vulnerability, including code snippets and attack vectors."
+    },
+    "soc_reporting": {
+        "model": "openai/gpt-3.5-turbo",  # OpenRouter model
+        "system_prompt": "Write a detailed report for a Security Operations Center (SOC) regarding the latest security incident."
+    },
+    "red_team_planning": {
+        "model": "mistralai/mixtral-8x7b-instruct",  # OpenRouter model
+        "system_prompt": "Assist in planning a red team engagement, including attack vectors, reconnaissance, and post-exploitation strategies."
+    },
+    "incident_response": {
+        "model": "openai/gpt-4-turbo",  # OpenRouter model
+        "system_prompt": "Create an incident response playbook for handling a security breach, including steps for containment, eradication, and recovery."
+    },
+    "malware_analysis": {
+        "model": "anthropic/claude-3-opus",  # OpenRouter model
+        "system_prompt": "Analyze a given piece of malware and describe its behavior, including potential impacts and mitigation strategies."
+    },
+    "threat_intel": {
+        "model": "openai/gpt-4",  # OpenRouter model
+        "system_prompt": "Write a detailed threat intelligence report on the latest trends in cyber threats, including recommendations for defense."
+    },
+    "social_attack_sim": {
+        "model": "anthropic/claude-3-sonnet",  # OpenRouter model
+        "system_prompt": "Simulate an attack on social media platforms, including crafting fake posts and exploiting user vulnerabilities."
+    },
+    "system_hardening": {
+        "model": "openai/gpt-4-turbo",  # OpenRouter model
+        "system_prompt": "Provide guidance on hardening a system, including steps for securing the operating system, applications, and network."
+    },
+    "security_policy": {
+        "model": "mistralai/mixtral-8x7b-instruct",  # OpenRouter model
+        "system_prompt": "Assist in creating a security policy for a company, covering areas such as access control, data protection, and incident response."
+    },
+    "blog_cyber_trends": {
+        "model": "openai/gpt-4",  # OpenRouter model
+        "system_prompt": "Write a blog post about the latest trends in cybersecurity, focusing on emerging threats and mitigation techniques."
+    },
+    "social_media_post": {
+        "model": "openai/gpt-3.5-turbo",  # OpenRouter model
+        "system_prompt": "Write a short, engaging social media post on phishing prevention for a general audience."
+    },
+    "code_review": {
+        "model": "anthropic/claude-3",  # OpenRouter model
+        "system_prompt": "Review the provided code snippet from a security perspective and identify potential vulnerabilities."
+    },
+    "security_training": {
+        "model": "openai/gpt-4-turbo",  # OpenRouter model
+        "system_prompt": "Create a training module for employees on how to recognize phishing attempts and other common cyber threats."
+    },
+    "security_scripts": {
+        "model": "mistralai/mixtral-8x7b-instruct",  # OpenRouter model
+        "system_prompt": "Write a Python script to automate security tasks, such as vulnerability scanning or incident response actions."
+    },
+    "pentest_summary": {
+        "model": "openai/gpt-3.5-turbo",  # OpenRouter model
+        "system_prompt": "Summarize the findings of a recent penetration test, highlighting the most critical vulnerabilities and recommendations."
+    },
+    "sql_injection": {
+        "model": "openai/gpt-4",  # OpenRouter model
+        "system_prompt": "Create a guide for exploiting SQL injection vulnerabilities, including techniques for bypassing filters and extracting data."
+    }
+}
+
+
 
 def pretty(x):
     return f"{x:.10f}".rstrip("0").rstrip(".")
@@ -211,8 +305,31 @@ class BaseLLMClient:
         logger.debug(f"{response=}")
         return response
 
-    def handle_response(self, response_json: Dict) -> str:
-        raise NotImplementedError
+    # def handle_response(self, response_json: Dict) -> str:
+    #     raise NotImplementedError
+
+    def handle_response(self, response: str) -> str:
+        logger.debug(f"{response.model_dump()}")
+        logger.debug(f"Chat ID: {response.id}")
+        reply = response.choices[0].message.content
+        completion_tokens = float(response.usage.completion_tokens)
+        total_tokens = float(response.usage.total_tokens)
+        cost = self.get_price(self.model, self.prompt_tokens, completion_tokens)
+
+        if self.output:
+            with open(self.output, "w") as f:
+                f.writelines(reply)
+        else:
+            print(f"\n--- RESPONSE ---\n")
+            print(self.highlight_code(reply, lang="markdown"))
+            print("\n--- USAGE ---")
+            print(f"Chat ID: {response.id}")
+            print(f"Prompt tokens: {self.prompt_tokens}")
+            print(f"Completion tokens: {completion_tokens}")
+            print(f"Total tokens: {total_tokens}")
+            print(f"Estimated cost: ${cost:.5f}")
+
+        self.record_usage(model=self.model, prompt_tokens=self.prompt_tokens, completion_tokens=completion_tokens, total_tokens=total_tokens, cost=cost, query=self.query, provider="openai")
 
     def add_to_history(self, role: str, content: str):
         self.chat_history.append({"role": role, "content": content})
@@ -318,7 +435,7 @@ class BaseLLMClient:
         model_name_lower = model_name.lower()
 
         if re.match(r"^o4-(nano|mini|small)", model_name_lower):
-            # Known open-access models like O4 family — approximating as GPT-like
+            # Known open-access models like O4 family — approximating as openai/gpt-like
             return tiktoken.get_encoding("cl100k_base")
 
         elif "mistral" in model_name_lower or "mixtral" in model_name_lower:
@@ -340,7 +457,7 @@ class BaseLLMClient:
             )
             return tiktoken.get_encoding("cl100k_base")
 
-    def count_tokens(self, messages, model="gpt-4"):
+    def count_tokens(self, messages, model="openai/gpt-4"):
         # encoding = tiktoken.encoding_for_model(model)
         # total = 0
         # for msg in messages:
@@ -358,8 +475,8 @@ class BaseLLMClient:
 
     def get_price(self,model, prompt_tokens, completion_tokens):
         if model in self.price:
-            return (prompt_tokens / 1000 * self.price[model]["prompt_tokens"]) + (
-                completion_tokens / 1000 * self.price[model]["completion_tokens"]
+            return (prompt_tokens / 1000 * float(self.price[model]["prompt_tokens"])) + (
+                completion_tokens / 1000 * float(self.price[model]["completion_tokens"])
             )
         else:
             return (prompt_tokens / 1000 * 0.03) + (completion_tokens / 1000 * 0.03)
@@ -373,7 +490,7 @@ class BaseLLMClient:
 
 
 class OpenAIClient(BaseLLMClient):
-    def __init__(self, model: str  = "gpt-4o-mini", api_key: str = None, file : str = None, temperature: int = 0.7, system_prompt : str = None, output: str = "", **kwargs):
+    def __init__(self, model: str  = "openai/gpt-4o-mini", api_key: str = None, file : str = None, temperature: int = 0.7, system_prompt : str = None, output: str = "", **kwargs):
         super().__init__(model=model, system_prompt = system_prompt, temperature = temperature, file=file)
         self.api_key = api_key
         # self.system_prompt = system_prompt
@@ -389,77 +506,77 @@ class OpenAIClient(BaseLLMClient):
             self.output = output
             logger.debug(f"No output on screen, {self.output=}")
         self.price = {
-            "gpt-4o-audio-preview-2024-12-17": {
+            "openai/gpt-4o-audio-preview-2024-12-17": {
                 "prompt_tokens": 0.04,
                 "completion_tokens": 0.08,
             },
             "dall-e-3": {"prompt_tokens": 0.04, "completion_tokens": 0.04},
             "dall-e-2": {"prompt_tokens": 0.02, "completion_tokens": 0.02},
-            "gpt-4o-audio-preview-2024-10-01": {
+            "openai/gpt-4o-audio-preview-2024-10-01": {
                 "prompt_tokens": 0.04,
                 "completion_tokens": 0.08,
             },
-            "gpt-4-turbo-preview": {"prompt_tokens": 0.01, "completion_tokens": 0.03},
+            "openai/gpt-4-turbo-preview": {"prompt_tokens": 0.01, "completion_tokens": 0.03},
             "text-embedding-3-small": {"prompt_tokens": 0.02, "completion_tokens": 0.02},
-            "gpt-4-turbo": {"prompt_tokens": 0.01, "completion_tokens": 0.03},
-            "gpt-4-turbo-2024-04-09": {"prompt_tokens": 0.01, "completion_tokens": 0.03},
-            "gpt-4.1-nano": {"prompt_tokens": 0.0001, "completion_tokens": 0.0004},
-            "gpt-4.1-nano-2025-04-14": {"prompt_tokens": 0.0001, "completion_tokens": 0.0004},
-            "gpt-4o-realtime-preview-2024-10-01": {
+            "openai/gpt-4-turbo": {"prompt_tokens": 0.01, "completion_tokens": 0.03},
+            "openai/gpt-4-turbo-2024-04-09": {"prompt_tokens": 0.01, "completion_tokens": 0.03},
+            "openai/gpt-4.1-nano": {"prompt_tokens": 0.0001, "completion_tokens": 0.0004},
+            "openai/gpt-4.1-nano-2025-04-14": {"prompt_tokens": 0.0001, "completion_tokens": 0.0004},
+            "openai/gpt-4o-realtime-preview-2024-10-01": {
                 "prompt_tokens": 0.0025,
                 "completion_tokens": 0.01,
             },
-            "gpt-4o-realtime-preview": {"prompt_tokens": 0.0025, "completion_tokens": 0.01},
+            "openai/gpt-4o-realtime-preview": {"prompt_tokens": 0.0025, "completion_tokens": 0.01},
             "babbage-002": {"prompt_tokens": 0.0005, "completion_tokens": 0.0005},
-            "gpt-4": {"prompt_tokens": 0.03, "completion_tokens": 0.06},
+            "openai/gpt-4": {"prompt_tokens": 0.03, "completion_tokens": 0.06},
             "text-embedding-ada-002": {"prompt_tokens": 0.0001, "completion_tokens": 0.0001},
-            "chatgpt-4o-latest": {"prompt_tokens": 0.0025, "completion_tokens": 0.01},
-            "gpt-4o-realtime-preview-2024-12-17": {
+            "chatopenai/gpt-4o-latest": {"prompt_tokens": 0.0025, "completion_tokens": 0.01},
+            "openai/gpt-4o-realtime-preview-2024-12-17": {
                 "prompt_tokens": 0.0025,
                 "completion_tokens": 0.01,
             },
-            "gpt-4o-mini-audio-preview": {"prompt_tokens": 0.01, "completion_tokens": 0.02},
-            "gpt-4o-audio-preview": {"prompt_tokens": 0.04, "completion_tokens": 0.08},
+            "openai/gpt-4o-mini-audio-preview": {"prompt_tokens": 0.01, "completion_tokens": 0.02},
+            "openai/gpt-4o-audio-preview": {"prompt_tokens": 0.04, "completion_tokens": 0.08},
             "o1-preview-2024-09-12": {"prompt_tokens": 0.05, "completion_tokens": 0.10},
-            "gpt-4o-mini-realtime-preview": {
+            "openai/gpt-4o-mini-realtime-preview": {
                 "prompt_tokens": 0.0025,
                 "completion_tokens": 0.01,
             },
-            "gpt-4.1-mini": {"prompt_tokens": 0.0008, "completion_tokens": 0.0032},
-            "gpt-4o-mini-realtime-preview-2024-12-17": {
+            "openai/gpt-4.1-mini": {"prompt_tokens": 0.0008, "completion_tokens": 0.0032},
+            "openai/gpt-4o-mini-realtime-preview-2024-12-17": {
                 "prompt_tokens": 0.0025,
                 "completion_tokens": 0.01,
             },
-            "gpt-3.5-turbo-instruct-0914": {
+            "openai/gpt-3.5-turbo-instruct-0914": {
                 "prompt_tokens": 0.0015,
                 "completion_tokens": 0.002,
             },
-            "gpt-4o-mini-search-preview": {"prompt_tokens": 0.0025, "completion_tokens": 0.01},
-            "gpt-4.1-mini-2025-04-14": {"prompt_tokens": 0.0008, "completion_tokens": 0.0032},
+            "openai/gpt-4o-mini-search-preview": {"prompt_tokens": 0.0025, "completion_tokens": 0.01},
+            "openai/gpt-4.1-mini-2025-04-14": {"prompt_tokens": 0.0008, "completion_tokens": 0.0032},
             "davinci-002": {"prompt_tokens": 0.02, "completion_tokens": 0.02},
-            "gpt-3.5-turbo-1106": {"prompt_tokens": 0.0015, "completion_tokens": 0.002},
-            "gpt-4o-search-preview": {"prompt_tokens": 0.0025, "completion_tokens": 0.01},
-            "gpt-3.5-turbo-instruct": {"prompt_tokens": 0.0015, "completion_tokens": 0.002},
-            "gpt-3.5-turbo": {"prompt_tokens": 0.0015, "completion_tokens": 0.002},
-            "gpt-4o-mini-search-preview-2025-03-11": {
+            "openai/gpt-3.5-turbo-1106": {"prompt_tokens": 0.0015, "completion_tokens": 0.002},
+            "openai/gpt-4o-search-preview": {"prompt_tokens": 0.0025, "completion_tokens": 0.01},
+            "openai/gpt-3.5-turbo-instruct": {"prompt_tokens": 0.0015, "completion_tokens": 0.002},
+            "openai/gpt-3.5-turbo": {"prompt_tokens": 0.0015, "completion_tokens": 0.002},
+            "openai/gpt-4o-mini-search-preview-2025-03-11": {
                 "prompt_tokens": 0.0025,
                 "completion_tokens": 0.01,
             },
-            "gpt-4-0125-preview": {"prompt_tokens": 0.01, "completion_tokens": 0.03},
-            "gpt-4o-2024-11-20": {"prompt_tokens": 0.0025, "completion_tokens": 0.01},
+            "openai/gpt-4-0125-preview": {"prompt_tokens": 0.01, "completion_tokens": 0.03},
+            "openai/gpt-4o-2024-11-20": {"prompt_tokens": 0.0025, "completion_tokens": 0.01},
             "whisper-1": {"prompt_tokens": 0.006, "completion_tokens": 0.006},
-            "gpt-4o-2024-05-13": {"prompt_tokens": 0.0025, "completion_tokens": 0.01},
-            "gpt-3.5-turbo-16k": {"prompt_tokens": 0.003, "completion_tokens": 0.004},
-            "gpt-image-1": {"prompt_tokens": 0.04, "completion_tokens": 0.04},
+            "openai/gpt-4o-2024-05-13": {"prompt_tokens": 0.0025, "completion_tokens": 0.01},
+            "openai/gpt-3.5-turbo-16k": {"prompt_tokens": 0.003, "completion_tokens": 0.004},
+            "openai/gpt-image-1": {"prompt_tokens": 0.04, "completion_tokens": 0.04},
             "o1-preview": {"prompt_tokens": 0.05, "completion_tokens": 0.10},
-            "gpt-4-0613": {"prompt_tokens": 0.03, "completion_tokens": 0.06},
+            "openai/gpt-4-0613": {"prompt_tokens": 0.03, "completion_tokens": 0.06},
             "text-embedding-3-large": {"prompt_tokens": 0.13, "completion_tokens": 0.13},
-            "gpt-4o-mini-tts": {"prompt_tokens": 0.0006, "completion_tokens": 0.012},
-            "gpt-4o-transcribe": {"prompt_tokens": 0.006, "completion_tokens": 0.006},
-            "gpt-4.5-preview": {"prompt_tokens": 0.075, "completion_tokens": 0.075},
-            "gpt-4.5-preview-2025-02-27": {"prompt_tokens": 0.075, "completion_tokens": 0.075},
-            "gpt-4o-mini-transcribe": {"prompt_tokens": 0.006, "completion_tokens": 0.006},
-            "gpt-4o-search-preview-2025-03-11": {
+            "openai/gpt-4o-mini-tts": {"prompt_tokens": 0.0006, "completion_tokens": 0.012},
+            "openai/gpt-4o-transcribe": {"prompt_tokens": 0.006, "completion_tokens": 0.006},
+            "openai/gpt-4.5-preview": {"prompt_tokens": 0.075, "completion_tokens": 0.075},
+            "openai/gpt-4.5-preview-2025-02-27": {"prompt_tokens": 0.075, "completion_tokens": 0.075},
+            "openai/gpt-4o-mini-transcribe": {"prompt_tokens": 0.006, "completion_tokens": 0.006},
+            "openai/gpt-4o-search-preview-2025-03-11": {
                 "prompt_tokens": 0.0025,
                 "completion_tokens": 0.01,
             },
@@ -468,22 +585,22 @@ class OpenAIClient(BaseLLMClient):
                 "completion_tokens": 0.0005,
             },
             "tts-1-hd": {"prompt_tokens": 0.0006, "completion_tokens": 0.012},
-            "gpt-4o": {"prompt_tokens": 0.0025, "completion_tokens": 0.01},
+            "openai/gpt-4o": {"prompt_tokens": 0.0025, "completion_tokens": 0.01},
             "tts-1-hd-1106": {"prompt_tokens": 0.0006, "completion_tokens": 0.012},
-            "gpt-4o-mini": {"prompt_tokens": 0.00015, "completion_tokens": 0.0006},
-            "gpt-4o-2024-08-06": {"prompt_tokens": 0.0025, "completion_tokens": 0.01},
-            "gpt-4.1": {"prompt_tokens": 0.003, "completion_tokens": 0.012},
-            "gpt-4.1-2025-04-14": {"prompt_tokens": 0.003, "completion_tokens": 0.012},
-            "gpt-4o-mini-2024-07-18": {"prompt_tokens": 0.00015, "completion_tokens": 0.0006},
+            "openai/gpt-4o-mini": {"prompt_tokens": 0.00015, "completion_tokens": 0.0006},
+            "openai/gpt-4o-2024-08-06": {"prompt_tokens": 0.0025, "completion_tokens": 0.01},
+            "openai/gpt-4.1": {"prompt_tokens": 0.003, "completion_tokens": 0.012},
+            "openai/gpt-4.1-2025-04-14": {"prompt_tokens": 0.003, "completion_tokens": 0.012},
+            "openai/gpt-4o-mini-2024-07-18": {"prompt_tokens": 0.00015, "completion_tokens": 0.0006},
             "o1-mini": {"prompt_tokens": 0.01, "completion_tokens": 0.02},
-            "gpt-4o-mini-audio-preview-2024-12-17": {
+            "openai/gpt-4o-mini-audio-preview-2024-12-17": {
                 "prompt_tokens": 0.01,
                 "completion_tokens": 0.02,
             },
-            "gpt-3.5-turbo-0125": {"prompt_tokens": 0.0015, "completion_tokens": 0.002},
+            "openai/gpt-3.5-turbo-0125": {"prompt_tokens": 0.0015, "completion_tokens": 0.002},
             "o1-mini-2024-09-12": {"prompt_tokens": 0.01, "completion_tokens": 0.02},
             "tts-1": {"prompt_tokens": 0.0006, "completion_tokens": 0.012},
-            "gpt-4-1106-preview": {"prompt_tokens": 0.01, "completion_tokens": 0.03},
+            "openai/gpt-4-1106-preview": {"prompt_tokens": 0.01, "completion_tokens": 0.03},
             "tts-1-1106": {"prompt_tokens": 0.0006, "completion_tokens": 0.012},
             "omni-moderation-latest": {"prompt_tokens": 0.0005, "completion_tokens": 0.0005},
         }
@@ -500,28 +617,6 @@ class OpenAIClient(BaseLLMClient):
     def get_endpoint(self) -> str:
         return "https://api.openai.com/v1/chat/completions"
 
-    def handle_response(self, response: str) -> str:
-        logger.debug(f"{response.model_dump()}")
-        logger.debug(f"Chat ID: {response.id}")
-        reply = response.choices[0].message.content
-        completion_tokens = response.usage.completion_tokens
-        total_tokens = response.usage.total_tokens
-        cost = self.get_price(self.model, self.prompt_tokens, completion_tokens)
-
-        if self.output:
-            with open(self.output, "w") as f:
-                f.writelines(reply)
-        else:
-            print(f"\n--- RESPONSE ---\n")
-            print(self.highlight_code(reply, lang="markdown"))
-            print("\n--- USAGE ---")
-            print(f"Chat ID: {response.id}")
-            print(f"Prompt tokens: {self.prompt_tokens}")
-            print(f"Completion tokens: {completion_tokens}")
-            print(f"Total tokens: {total_tokens}")
-            print(f"Estimated cost: ${cost:.5f}")
-
-        self.record_usage(model=self.model, prompt_tokens=self.prompt_tokens, completion_tokens=completion_tokens, total_tokens=total_tokens, cost=cost, query=self.query, provider="openai")
 
     def get_usage(self, days=10):
         """
@@ -579,7 +674,7 @@ class OpenRouterClient(BaseLLMClient):
     def get_endpoint(self) -> str:
         return "https://openrouter.ai/api/v1/"
 
-    def __init__(self, model: str  = "gpt-4o-mini", api_key: str = None, file : str = None, temperature: int = 0.7, system_prompt : str = None, output: str = "",  **kwargs):
+    def __init__(self, model: str  = "openai/gpt-4o-mini", api_key: str = None, file : str = None, temperature: int = 0.7, system_prompt : str = None, output: str = "",  **kwargs):
         super().__init__(model=model, system_prompt = system_prompt, temperature = temperature, file=file)
         self.get_key("OPENROUTER_KEY")
         # self.system_prompt = system_prompt
@@ -610,27 +705,6 @@ class OpenRouterClient(BaseLLMClient):
 
     def print_model_pricing_table(self):
         super().print_model_pricing_table(self.price)
-    # def print_model_pricing_table(self,pricing_data= None):
-    #     # Build list with calculated total cost per 1000 prompt + 1000 output tokens
-    #     url = f"{self.get_endpoint()}pricing"
-    #     r = requests.get(url, headers={"Authorization": f"Bearer {self.api_key}", "Content-Type":"application/json"})
-    #     print (r.text)
-    #     print (r.json())
-
-    #     table = []
-    #     for model, prices in pricing_data.items():
-    #         prompt_cost = prices.get("prompt_tokens", 0)
-    #         output_cost = prices.get("completion_tokens", 0)
-    #         total = prompt_cost + output_cost
-    #         table.append([model, prompt_cost, output_cost, total])
-
-    #     # Sort by total cost
-    #     table.sort(key=lambda x: x[3])
-
-    #     # Print the table
-    #     headers = ["Model", "Prompt ($/1k)", "Output ($/1k)", "Total ($/1k in + out)"]
-    #     # print(tabulate(table, headers=headers, tablefmt="github"))
-    #     print(tabulate(table, headers=headers, tablefmt="fancy_grid"))
 
 class TogetherClient(OpenAIClient):
     def get_endpoint(self) -> str:
@@ -679,11 +753,12 @@ provider_map = {
 def main():
     #print(f"{current_script_path=}")
     prompt_choices = get_filenames_without_extension(str(current_script_path)+ "/prompts")
+    prompt_choices += model_prompts.keys()
     parser = argparse.ArgumentParser(
         description="💬 GPT CLI Tracker: Ask OpenAI models, track usage and cost.",
         epilog="""
           gpt "What's the capital of France?"
-          gpt "Refactor this function" --model gpt-4
+          gpt "Refactor this function" --model openai/gpt-4
           gpt --history
           gpt --total
           gpt --list-models
@@ -693,8 +768,8 @@ def main():
     )
     parser.add_argument("query", nargs="?", type=str, help="Your prompt or question")
     parser.add_argument(
-        "-m", "--model", type=str, default="gpt-4o-mini",
-        help="Specify the model to use (default: gpt-4o-mini). Available models can be listed using --list-models."
+        "-m", "--model", type=str, default="openai/gpt-4o-mini",
+        help="Specify the model to use (default: openai/gpt-4o-mini). Available models can be listed using --list-models."
     )
     parser.add_argument(
         "-up", "--use-prompt", type=match_abbreviation(prompt_choices),
@@ -726,6 +801,7 @@ def main():
     )
 
     args = parser.parse_args()
+    model = args.model
     logger.debug(f"Arguments {args=}")
     try:
         logger.setLevel(getattr(logging, args.log_level.upper()))
@@ -749,11 +825,15 @@ def main():
                 system_prompt = "\n" .join(f.readlines())
                 logger.debug(f"System prompt is set as {system_prompt}")
         else:
+            system_prompt = model_prompts[args.use_prompt]['system_prompt']
+            model = model_prompts[args.use_prompt]['model']
             logger.critical(f"Prompt File {filename} does not exist")
-            sys.exit(-1)
+            logger.debug(f"Using {system_prompt=}")
+            logger.debug(f"Using {model=}")
+            #sys.exit(-1)
     client_class = provider_map[args.provider]
     llm_client = client_class(
-        model=args.model,
+        model=model,
         api_key=os.getenv("OPENAI_API_KEY"),
         system_prompt=system_prompt,
         temperature=args.temp,
@@ -763,7 +843,12 @@ def main():
 
 
     if args.list_models:
-        llm_client.list_available_models()
+        if args.file :
+            batch = True
+        models = llm_client.list_available_models(batch)
+        if args.file:
+            with open(args.file, "w") as f:
+                f.writelines(json.dumps(models.model_dump()))
         return
 
     if args.list_pricing:
@@ -790,6 +875,7 @@ def main():
         #print("🧠 Querying model...\n")
         try:
             response = llm_client.send_request(args.query)
+            logger.debug(f"Response: {response=}")
             llm_client.handle_response(response)
         except Exception as e:
             logger.error(f"❌ Error while querying: {e}")
