@@ -37,7 +37,7 @@ from openai import OpenAI, responses
 from datetime import datetime
 import tiktoken
 import re
-
+from rich_argparse import RichHelpFormatter
 
 # Setup logging
 console = Console()
@@ -54,115 +54,115 @@ DB_FILE = os.path.expanduser(current_script_path + "/gpt_usage.db")
 model_prompts = {
     "red_team": {
         "model": "openai/gpt-4-turbo",
-        "system_prompt": "You’re a Gen‑Z red team penetration tester at the cutting edge. Leverage the freshest exploits and attack vectors to craft high‑impact PoC exploits for modern services—keep it sharp, data‑driven, and jargon‑packed."
+        "system_prompt": "You are a penetration tester in a red team. Use your knowledge of exploits and attack vectors to craft effective PoC exploits for services.",
+        "assistant_input": "Sure, here's a Python PoC using `socket` to exploit the buffer overflow in the vulnerable service..."
     },
-
     "reverse_eng": {
         "model": "anthropic/claude-3-opus",
-        "system_prompt": "You’re a forward‑thinking binary analyst in a corporate SOC. Dive deep into raw machine code, surface hidden vulnerabilities, and deliver actionable insights with clear, jargon‑rich commentary."
+        "system_prompt": "Analyze the binary code and provide insights into potential vulnerabilities or weaknesses.",
+        "assistant_input": "After disassembling the binary, I noticed a classic stack buffer overflow in the `auth()` function due to unchecked `strcpy` usage..."
     },
-
     "payload_creation": {
         "model": "mistralai/mixtral-8x7b-instruct",
-        "system_prompt": "You’re a creative payload engineer on a red team. Generate modular, stealthy payloads targeting specific system weaknesses—think outside the box, stay ahead of defenses, and document with precision."
+        "system_prompt": "Create a payload for penetration testing that targets a specific system vulnerability.",
+        "assistant_input": "Here’s a reverse shell payload crafted with `msfvenom` targeting Windows x64 over HTTPS..."
     },
-
     "cyber_awareness": {
         "model": "anthropic/claude-3-sonnet",
-        "system_prompt": "You’re a corporate cyber‑awareness guru. Write a polished, professional post on defending against ransomware in enterprise environments—blend strategic insights, real‑world examples, and an empowering tone."
+        "system_prompt": "Write a professional post on defending against ransomware attacks in corporate environments.",
+        "assistant_input": "Ransomware defense starts with strong endpoint detection, frequent offline backups, and phishing-resistant email filtering."
     },
-
     "phishing_campaign": {
         "model": "openai/gpt-3.5-turbo",
-        "system_prompt": "You’re a social engineering specialist. Help set up a sophisticated phishing campaign: craft persuasive emails, map out social tactics, and plan payload delivery—always aiming for maximum realism and impact."
+        "system_prompt": "Assist in setting up a phishing campaign, including email crafting, social engineering tactics, and payload deployment.",
+        "assistant_input": "Crafted a spoofed Outlook login page and an email that leverages urgency to trick the user into clicking..."
     },
-
     "vuln_assessment": {
         "model": "openai/gpt-4",
-        "system_prompt": "You’re a senior pentester. Build a comprehensive vulnerability assessment report from recent engagement data—highlight critical findings, contextualize business risk, and recommend prioritized remediation steps."
+        "system_prompt": "Create a comprehensive vulnerability assessment report based on the findings from a recent penetration test.",
+        "assistant_input": "The assessment identified three high-severity issues: unauthenticated RCE, outdated Apache server, and misconfigured S3 buckets..."
     },
-
     "exploit_dev": {
         "model": "anthropic/claude-3-opus",
-        "system_prompt": "You’re an exploit development lead. Guide the creation of a PoC exploit for a discovered vulnerability: include clear code snippets, attack vectors, and mitigation notes—let’s make it robust and repeatable."
+        "system_prompt": "Provide guidance on developing an exploit for a discovered vulnerability, including code snippets and attack vectors.",
+        "assistant_input": "You can exploit this heap overflow by corrupting adjacent chunks and redirecting execution flow to a ROP chain..."
     },
-
     "soc_reporting": {
         "model": "openai/gpt-3.5-turbo",
-        "system_prompt": "You’re a SOC analyst. Draft a detailed incident report on the latest security breach: cover timelines, MITRE techniques, remediation actions, and executive summaries—keep it concise yet thorough."
+        "system_prompt": "Write a detailed report for a Security Operations Center (SOC) regarding the latest security incident.",
+        "assistant_input": "At 03:21 UTC, our EDR detected anomalous PowerShell execution tied to lateral movement from host `SRV-DC-02`..."
     },
-
     "red_team_planning": {
         "model": "mistralai/mixtral-8x7b-instruct",
-        "system_prompt": "You’re a strategic red‑team planner. Outline an engagement roadmap: reconnaissance phases, attack vectors, pivot strategies, and post‑exploit objectives—align to business goals and compliance needs."
+        "system_prompt": "Assist in planning a red team engagement, including attack vectors, reconnaissance, and post-exploitation strategies.",
+        "assistant_input": "Initial recon will include passive OSINT on the target org’s domain. The engagement will move into phishing, privilege escalation, and persistence."
     },
-
     "incident_response": {
         "model": "openai/gpt-4-turbo",
-        "system_prompt": "You’re an IR playbook architect. Create a step‑by‑step incident response playbook covering containment, eradication, recovery, and post‑mortem—embed checklists and escalation paths."
+        "system_prompt": "Create an incident response playbook for handling a security breach, including steps for containment, eradication, and recovery.",
+        "assistant_input": "Step 1: Isolate impacted endpoints. Step 2: Identify and terminate malicious processes. Step 3: Deploy remediation scripts and begin forensic analysis..."
     },
-
     "malware_analysis": {
         "model": "anthropic/claude-3-opus",
-        "system_prompt": "You’re a malware reverse engineer. Analyze the submitted sample, describe its behavior, map out indicators of compromise, and suggest mitigation strategies—deliver clear, executive‑ready insights."
+        "system_prompt": "Analyze a given piece of malware and describe its behavior, including potential impacts and mitigation strategies.",
+        "assistant_input": "This malware runs as a background process, periodically checks for a C2 server, and can exfiltrate browser credentials via HTTP POST..."
     },
-
     "threat_intel": {
         "model": "openai/gpt-4",
-        "system_prompt": "You’re a threat intelligence analyst. Produce an in‑depth report on emerging cyber threats: cover TTP trends, adversary groups, and defense recommendations—use data‑backed analysis and corporate‑grade clarity."
+        "system_prompt": "Write a detailed threat intelligence report on the latest trends in cyber threats, including recommendations for defense.",
+        "assistant_input": "Q1 2025 shows a surge in AI-assisted phishing and ransomware-as-a-service offerings. Zero-trust and MFA adoption are critical responses..."
     },
-
     "social_attack_sim": {
         "model": "anthropic/claude-3-sonnet",
-        "system_prompt": "You’re a social media penetration specialist. Simulate realistic social attacks: craft in‑platform posts, DMs, and engagement lures—focus on psychology, timing, and bypassing platform defenses."
+        "system_prompt": "Simulate an attack on social media platforms, including crafting fake posts and exploiting user vulnerabilities.",
+        "assistant_input": "Posted a fake giveaway with a link to a credential harvester mimicking a known influencer's site. Engagement rate is high within the first hour..."
     },
-
     "system_hardening": {
         "model": "openai/gpt-4-turbo",
-        "system_prompt": "You’re a system security architect. Provide a holistic hardening guide for OS, applications, and networks: include baseline configurations, automated checks, and compliance considerations."
+        "system_prompt": "Provide guidance on hardening a system, including steps for securing the operating system, applications, and network.",
+        "assistant_input": "Disable unused services, enable SELinux/AppArmor, enforce password policies, and segment your network using VLANs..."
     },
-
     "security_policy": {
         "model": "mistralai/mixtral-8x7b-instruct",
-        "system_prompt": "You’re a policy architect. Draft a corporate security policy covering access control, data protection, incident response, and compliance—ensuring clarity, enforceability, and alignment with standards."
+        "system_prompt": "Assist in creating a security policy for a company, covering areas such as access control, data protection, and incident response.",
+        "assistant_input": "Policy recommends RBAC with MFA for all privileged access, encrypted data at rest and transit, and quarterly incident response drills..."
     },
-
     "blog_cyber_trends": {
         "model": "openai/gpt-4",
-        "system_prompt": "You’re a thought‑leader blogger. Write an engaging post on the latest cybersecurity trends: explore emerging threats, cutting‑edge defenses, and forward‑looking strategies—keep it approachable yet insightful."
+        "system_prompt": "Write a blog post about the latest trends in cybersecurity, focusing on emerging threats and mitigation techniques.",
+        "assistant_input": "Cybersecurity in 2025 is seeing an AI-driven arms race. Defenders must embrace threat intelligence automation to stay ahead..."
     },
-
     "social_media_post": {
         "model": "openai/gpt-3.5-turbo",
-        "system_prompt": "You’re a social media manager. Craft a concise, engaging post on phishing prevention for a broad audience—focus on clear tips, real‑world examples, and an encouraging tone."
+        "system_prompt": "Write a short, engaging social media post on phishing prevention for a general audience.",
+        "assistant_input": "⚠️ Don’t get hooked! Always double-check sender emails and links. Hover before you click. #PhishingAwareness #CyberSafe"
     },
-
     "code_review": {
         "model": "anthropic/claude-3-opus",
-        "system_prompt": "You’re a secure‑code reviewer. Examine the provided snippet, flag potential vulnerabilities, and suggest remediation—deliver feedback in clear, action‑oriented bullet points."
+        "system_prompt": "Review the provided code snippet from a security perspective and identify potential vulnerabilities.",
+        "assistant_input": "Line 24 uses `eval()` on untrusted input, which could lead to code injection. Consider using `ast.literal_eval` or a safer parsing method..."
     },
-
     "security_training": {
         "model": "openai/gpt-4-turbo",
-        "system_prompt": "You’re a corporate trainer. Create an interactive module on recognizing phishing and common cyber threats—include scenarios, quizzes, and best practices that engage and empower employees."
+        "system_prompt": "Create a training module for employees on how to recognize phishing attempts and other common cyber threats.",
+        "assistant_input": "Module 1: Spotting phishing signs — mismatched URLs, urgent tone, strange attachments. Interactive quiz follows each section."
     },
-
     "security_scripts": {
         "model": "mistralai/mixtral-8x7b-instruct",
-        "system_prompt": "You’re a DevSecOps engineer. Write a Python automation script for security tasks (scanning, alerting, response)—include comments, error handling, and modular design for easy reuse."
+        "system_prompt": "Write a Python script to automate security tasks, such as vulnerability scanning or incident response actions.",
+        "assistant_input": "Here's a Python script using `nmap` and `subprocess` to scan the internal network and log open ports into a CSV file..."
     },
-
     "pentest_summary": {
         "model": "openai/gpt-3.5-turbo",
-        "system_prompt": "You’re a pentest lead. Summarize the recent engagement: highlight critical findings, risk ratings, and prioritized recommendations in a crisp, executive‑ready report."
+        "system_prompt": "Summarize the findings of a recent penetration test, highlighting the most critical vulnerabilities and recommendations.",
+        "assistant_input": "3 critical vulns were found: Unrestricted file upload, hardcoded credentials, and exposed management interfaces..."
     },
-
     "sql_injection": {
         "model": "openai/gpt-4",
-        "system_prompt": "You’re a web‑app security specialist. Create a step‑by‑step guide to exploiting SQL injection: cover bypass techniques, data exfiltration, and mitigation best practices."
-    },
+        "system_prompt": "Create a guide for exploiting SQL injection vulnerabilities, including techniques for bypassing filters and extracting data.",
+        "assistant_input": "Start with basic `OR '1'='1` injection. Use `UNION SELECT` to extract DB names. Bypass WAFs using inline comments or encodings..."
+    }
 }
-
 
 def pretty(x):
     return f"{x:.10f}".rstrip("0").rstrip(".")
@@ -311,6 +311,9 @@ class BaseLLMClient:
         if self.system_prompt:
             messages.append({"role": "system", "content": self.system_prompt})
         messages.append({"role": "user", "content": query})
+        # if model_prompts[self.model]:
+            # logger.debug(f"Adding assistant prompt: {model_prompts[self.model]['assistant_input']}")
+            # messages.append({"role": "assistant", "content": model_prompts[self.model]['assistant_input']})
         if self.file:
             logger.debug(f"File is set to {self.file=}")
             try:
@@ -420,33 +423,42 @@ class BaseLLMClient:
         print(f"\n💸 Total estimated cost so far: ${total:.5f}")
         conn.close()
 
-    def list_available_models(self, batch=False):
+    def list_available_models(self, batch=False, filter= None):
         rich_table = Table(title="Model List")
 
-        rich_table.add_column("ID")
-        rich_table.add_column("Created")
-        rich_table.add_column("Ctx Len")
-        rich_table.add_column("Modality")
 
         table=[]
         #headers = ["ID", "Created", "Description", "Context Len", "Modality", "Supported Parameters" ]
         models = self.client.models.list()
         if batch:
             return models
+        rich_table.add_column("ID")
+        rich_table.add_column("Created")
+        if hasattr(models.data[0], 'context_length'):
+            rich_table.add_column("Ctx Len")
+            rich_table.add_column("Modality")
         print("\n📦 Available OpenAI Models:")
         for m in models.data:
             # Convert created to humban-readable formatting
             m.created = datetime.fromtimestamp(m.created).strftime("%Y-%m-%d %H:%M:%S")
             # print(f"* {m.id}, Owner: {m.owned_by}, Created: {m.created}")
             #table.append([ m.id, m.created, m.description, m.context_length, m.architecture["modality"], m.supported_parameters ])
-            cl = f"{int(m.context_length / 1000)} K" if m.context_length > 1000 else str(m.context_length)
-            logger.debug(f"{m.context_length=} and {cl=}")
-            rich_table.add_row( m.id, m.created, cl , m.architecture["modality"])
+            if filter:
+                logger.debug(f"Filter is set to {filter=}")
+                if filter not in m.id and filter not in m.name:
+                    logger.debug(f"Fitlering out {m.id}")
+                    continue
+            if hasattr(m, 'context_length'):
+                cl = f"{int(m.context_length / 1000)} K" if m.context_length > 1000 else str(m.context_length)
+                logger.debug(f"{m.context_length=} and {cl=}")
+                rich_table.add_row( m.id, m.created, cl , m.architecture["modality"])
+            else:
+                rich_table.add_row( m.id, m.created)
         #print(tabulate(clean_table, headers=headers, tablefmt="fancy_grid", maxcolwidths=[20, 20, 35, 10, 10, 35, 10] ))
         # Table format options: plain, simple, grid, fancy_grid, github, pipe, orgtbl, mediawiki, rst, html, latex, jira, pretty
         console.print(rich_table)
 
-    def print_model_pricing_table(self, pricing_data):
+    def print_model_pricing_table(self, pricing_data, filter= None):
         # Build list with calculated total cost per 1000 prompt + 1000 output tokens
         rich_table = Table(title="Model Usage Costs")
 
@@ -459,6 +471,10 @@ class BaseLLMClient:
             pricing_data.items(), key=lambda x: sum(float(v) for v in x[1].values())
         )  # or x[1][3] if total is at index 3
         for model, prices in sorted_data:
+            if filter:
+                if filter not in model:
+                    logger.debug("Exlcluding {model} due to filter")
+                    continue
             logger.debug(f"{prices=}")
             pc = prices.get("prompt_tokens", 0)
             prompt_cost = float(pc) if isinstance(pc, str) else pc
@@ -577,6 +593,7 @@ class OpenAIClient(BaseLLMClient):
         if output:
             self.output = output
             logger.debug(f"No output on screen, {self.output=}")
+
         self.price = {
             "openai/gpt-4o-audio-preview-2024-12-17": {
                 "prompt_tokens": 0.04,
@@ -845,8 +862,9 @@ class OpenAIClient(BaseLLMClient):
         print(tabulate(table, headers=headers, tablefmt="fancy_grid"))
         print(f"\nTotal Cost: {a:.8f}")
 
-    def print_model_pricing_table(self):
-        super().print_model_pricing_table(self.price)
+    def print_model_pricing_table(self, filter= None):
+        super().print_model_pricing_table(self.price, filter= filter)
+        print("Note: This could be incorrect as this is data provided with script")
 
 
 class OpenRouterClient(BaseLLMClient):
@@ -894,8 +912,8 @@ class OpenRouterClient(BaseLLMClient):
         print(f"Total Credits: {d['total_credits']}")
         print(f"Total Usage: {d['total_usage']:.6f}")
 
-    def print_model_pricing_table(self):
-        super().print_model_pricing_table(self.price)
+    def print_model_pricing_table(self, filter=None):
+        super().print_model_pricing_table(self.price, filter= filter)
 
     def send_request(self, prompt: str) -> str:
 
@@ -971,6 +989,7 @@ def main():
     prompt_choices += model_prompts.keys()
     parser = argparse.ArgumentParser(
         description="💬 GPT CLI Tracker: Ask OpenAI models, track usage and cost.",
+        formatter_class=RichHelpFormatter,
         epilog="""
           gpt "What's the capital of France?"
           gpt "Refactor this function" --model openai/gpt-4
@@ -979,7 +998,7 @@ def main():
           gpt --list-models
           gpt "Give me a plan for a YouTube channel" --use-prompt
         """,
-        formatter_class=argparse.RawTextHelpFormatter,
+        #formatter_class=argparse.RawTextHelpFormatter,
     )
     parser.add_argument("query", nargs="?", type=str, help="Your prompt or question")
     parser.add_argument(
@@ -994,7 +1013,7 @@ def main():
         "--use-prompt",
         type=match_abbreviation(prompt_choices),
         default="default",
-        help=f"Specify a prompt type. Options: {','.join(prompt_choices)}. Default is 'general'.",
+        help=f"Specify a prompt type. Options: {', '.join(prompt_choices)}. Default is 'general'.",
     )
     parser.add_argument(
         "-hi",
@@ -1058,6 +1077,12 @@ def main():
         default=4096,
         help="Use low cost LLM for OpenRouter",
     )
+    parser.add_argument(
+        "-fi",
+        "--filter",
+        type=str,
+        help="Set the logging level.",
+    )
     parser.add_argument("-o", "--output", default=None, help="The output file to use.")
 
     args = parser.parse_args()
@@ -1106,7 +1131,7 @@ def main():
             batch = True
         else:
             batch = False
-        models = llm_client.list_available_models(batch)
+        models = llm_client.list_available_models(batch, filter=args.filter)
         if args.file:
             with open(args.file, "w") as f:
                 f.writelines(json.dumps(models.model_dump()))
@@ -1114,7 +1139,7 @@ def main():
 
     if args.list_pricing:
         # if hasattr(OpenAIClient, "price"):
-        llm_client.print_model_pricing_table()
+        llm_client.print_model_pricing_table(filter=args.filter)
         # else:
         # print("⚠️ No pricing data available.")
         return
