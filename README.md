@@ -57,6 +57,13 @@ python zapgpt.py
 * Show your current usage.
 * Optional pre-cooked system prompts.
 
+## Prompts
+
+You can add your own prompts to prompts folder. Now there is a common
+common_base.txt which gets added to all the prompts. You can either modify it or
+remove it if you want. You can also add your own files in this folder and use
+them.
+
 ### v2 Features
 
 * Script now uses class and is much more well organized.

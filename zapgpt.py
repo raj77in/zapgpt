@@ -463,9 +463,9 @@ class BaseLLMClient:
         rich_table = Table(title="Model Usage Costs")
 
         rich_table.add_column("Model")
-        rich_table.add_column("Prompt Cost")
-        rich_table.add_column("Output Cost")
-        rich_table.add_column("Total")
+        rich_table.add_column("Prompt Cost (1K)")
+        rich_table.add_column("Output Cost (1K)")
+        rich_table.add_column("Total (1K)")
 
         sorted_data = sorted(
             pricing_data.items(), key=lambda x: sum(float(v) for v in x[1].values())
@@ -477,10 +477,10 @@ class BaseLLMClient:
                     continue
             logger.debug(f"{prices=}")
             pc = prices.get("prompt_tokens", 0)
-            prompt_cost = float(pc) if isinstance(pc, str) else pc
+            prompt_cost = float(pc) *1000 if isinstance(pc, str) else pc
             oc = prices.get("completion_tokens", 0)
-            output_cost = float(oc) if isinstance(oc, str) else oc
-            total = prompt_cost + output_cost
+            output_cost = float(oc) *1000 if isinstance(oc, str) else oc
+            total = (prompt_cost + output_cost) /2
             logger.debug(f"{prompt_cost} - {output_cost} - {total}")
             logger.debug(
                 f"{pretty(prompt_cost)} - {pretty(output_cost)} - {pretty(total)}"
@@ -899,7 +899,7 @@ class OpenRouterClient(BaseLLMClient):
         self.price = {}
         models = self.list_available_models(batch=True)
         for m in models.data:
-            logger.debug(f"{m}")
+            #logger.debug(f"{m}")
             self.price[m.id] = {
                 "prompt_tokens": m.pricing["prompt"],
                 "completion_tokens": m.pricing["completion"],
@@ -971,6 +971,15 @@ class ReplicateClient(BaseLLMClient):
         track_usage(self.model, "replicate", 0)
         return output
 
+def get_prompt(filename):
+    logger.debug(f"Prompt file is {filename}")
+    if os.path.exists(filename):
+        with open(filename, "r") as f:
+            system_prompt = "\n".join(f.readlines())
+            logger.debug(f"Prompt {system_prompt}")
+        return system_prompt
+    else:
+        return ""
 
 provider_map = {
     "openai": OpenAIClient,
@@ -1005,7 +1014,8 @@ def main():
         "-m",
         "--model",
         type=str,
-        default="openai/gpt-4o-mini",
+        #default="openai/gpt-4o-mini",
+        default="openai/gpt-3.5-turbo",
         help="Specify the model to use (default: openai/gpt-4o-mini). Available models can be listed using --list-models.",
     )
     parser.add_argument(
@@ -1050,6 +1060,10 @@ def main():
     parser.add_argument(
         "-u",
         "--usage",
+        required=False,
+        nargs='?',
+        const=10,
+        # default=10,
         type=int,
         help="Specify days to retrieve usage from OpenAI API.",
     )
@@ -1102,19 +1116,26 @@ def main():
             logger.debug(f"Setting output file as {args.output=}")
     system_prompt = None
     if args.use_prompt:
+        logger.debug(f"Getting file {current_script_path}/prompts/common_base.txt")
+        base_prompt = get_prompt(f"{current_script_path}/prompts/common_base.txt")
+        logger.debug(f"Base prompt: {base_prompt}")
+        sprompt = ""
         filename = f"{current_script_path}/prompts/{args.use_prompt}.txt"
-        logger.debug(f"Prompt file is {filename}")
         if os.path.exists(filename):
-            with open(filename, "r") as f:
-                system_prompt = "\n".join(f.readlines())
-                logger.debug(f"System prompt is set as {system_prompt}")
+            sprompt = get_prompt(filename)
         else:
-            system_prompt = model_prompts[args.use_prompt]["system_prompt"]
+            sprompt = model_prompts[args.use_prompt]["system_prompt"]
             model = model_prompts[args.use_prompt]["model"]
             logger.critical(f"Prompt File {filename} does not exist")
             logger.debug(f"Using {system_prompt=}")
             logger.debug(f"Using {model=}")
             # sys.exit(-1)
+        system_prompt = f"""
+            {base_prompt}
+
+            {sprompt}
+        """
+        logger.debug(f"Using system prompt : {system_prompt}")
     client_class = provider_map[args.provider]
     llm_client = client_class(
         model=model,

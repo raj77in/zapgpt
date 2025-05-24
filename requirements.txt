@@ -5,3 +5,4 @@ tiktoken==0.9.0
 rich==13.9.4
 pygments==2.17.2
 httpx==0.28.1
+rich-argparse==13.9.4
