@@ -971,11 +971,145 @@ class ReplicateClient(BaseLLMClient):
         track_usage(self.model, "replicate", 0)
         return output
 
+class GithubClient(BaseLLMClient):
+    def get_endpoint(self) -> str:
+        return f"https://models.github.ai/inference/chat/completions"
+
+    def __init__(
+        self,
+        model: str = "openai/gpt-4.1",
+        api_key: str = None,
+        file: str = None,
+        temperature: int = 0.7,
+        system_prompt: str = None,
+        output: str = "",
+        max_tokens : int = 4096,
+        **kwargs,
+    ):
+        super().__init__(
+            model=model, system_prompt=system_prompt, temperature=temperature, file=file, max_tokens=max_tokens
+        )
+        self.get_key("GITHUB_KEY")
+        logger.debug ("using auto routing with lowest cost model")
+        # self.system_prompt = system_prompt
+        # logger.debug(f"system prompt {self.system_prompt=}")
+        self.client = OpenAI(api_key=self.api_key, base_url=self.get_endpoint())
+        logger.debug(f"File is set to {self.file}")
+        if output:
+            self.output = output
+            logger.debug(f"No output on screen, {self.output=}")
+
+        self.headers = {"Accept": "application/vnd.github+json", "Authorization": "Bearer "+self.api_key, "GitHub-Api-Version": "2022-11-28"}
+        self.price = {}
+        models = self.list_available_models(batch=True)
+        for m in models:
+            logger.debug(f"{m}")
+            model = m["id"]
+            self.price[model] = {
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+            }
+
+    def get_usage(self, days=10):
+        url = f"{self.get_endpoint()}credits"
+        r = requests.get(url, headers={"Authorization": f"Bearer {self.api_key}"})
+        d = r.json()["data"]
+        print(f"Total Credits: {d['total_credits']}")
+        print(f"Total Usage: {d['total_usage']:.6f}")
+
+    def print_model_pricing_table(self, filter=None):
+        super().print_model_pricing_table(self.price, filter= filter)
+
+    def list_available_models(self, batch=False, filter=None):
+        models = requests.get("https://models.github.ai/catalog/models", headers=self.headers).json()
+        logger.debug(f"All Models: {models}")
+        rich_table = Table(title="Model List")
+
+
+        table=[]
+        #headers = ["ID", "Created", "Description", "Context Len", "Modality", "Supported Parameters" ]
+        if batch:
+            return models
+        rich_table.add_column("ID")
+        rich_table.add_column("Name")
+        rich_table.add_column("Publisher")
+        rich_table.add_column("Rate Limit Tier")
+        rich_table.add_column("Input Modalities")
+        rich_table.add_column("Output Modalities")
+        print("\n📦 Available Github Models:")
+        for m in models:
+            # Convert created to humban-readable formatting
+            # print(f"* {m.id}, Owner: {m.owned_by}, Created: {m.created}")
+            #table.append([ m.id, m.created, m.description, m.context_length, m.architecture["modality"], m.supported_parameters ])
+            if filter:
+                logger.debug(f"Filter is set to {filter=}")
+                if filter not in m["id"] and filter not in m["name"]:
+                    logger.debug(f"Fitlering out {m["id"]}")
+                    continue
+            rich_table.add_row( m["id"], m["name"], m["publisher"], m["rate_limit_tier"], ','.join(m["supported_input_modalities"]), ','.join(m["supported_output_modalities"]))
+        #print(tabulate(clean_table, headers=headers, tablefmt="fancy_grid", maxcolwidths=[20, 20, 35, 10, 10, 35, 10] ))
+        # Table format options: plain, simple, grid, fancy_grid, github, pipe, orgtbl, mediawiki, rst, html, latex, jira, pretty
+        console.print(rich_table)
+
+    def send_request(self, prompt: str) -> str:
+
+        self.query = prompt
+        logger.debug(f"User Prompt is set to {prompt}")
+        prompt = self.create_prompt(prompt)
+        logger.debug(f"Created prompt is : {prompt=}")
+
+        # prompt_tokens = count_tokens(messages, model)
+        prompt_tokens = self.count_tokens(prompt, self.model)
+        self.prompt_tokens = prompt_tokens
+        # max_total = 128000
+        # max_tokens = min(4096, max_total - prompt_tokens)  # absolute safe cap
+        params = {
+            "model": self.model,
+            "messages": prompt,
+            "temperature": self.temperature,
+            "max_tokens": self.max_tokens,
+            "top_p": 1.0,
+        }
+        logger.debug(f"Making request with {params=} using requests")
+        #response = self.client.chat.completions.create(**params)
+        response = requests.post(self.get_endpoint(), headers=self.headers, json=params).json()
+        logger.debug(f"{response=}")
+
+        return response
+
+    def handle_response(self, response: str) -> str:
+        reply = response["choices"][0]["message"]["content"]
+        completion_tokens = self.count_tokens(reply, model=self.model)
+        total_tokens = completion_tokens
+        cost = 0.0
+
+        if self.output:
+            with open(self.output, "w") as f:
+                f.writelines(reply)
+        else:
+            print(f"\n--- RESPONSE ---\n")
+            print(self.highlight_code(reply, lang="markdown"))
+            print("\n--- USAGE ---")
+            print(f"Prompt tokens: {self.prompt_tokens}")
+            print(f"Completion tokens: {completion_tokens}")
+            print(f"Total tokens: {total_tokens}")
+            print(f"Estimated cost: ${cost:.5f}")
+
+        self.record_usage(
+            model=self.model,
+            prompt_tokens=self.prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=total_tokens,
+            cost=cost,
+            query=self.query,
+            provider="github",
+        )
+
 def get_prompt(filename):
     logger.debug(f"Prompt file is {filename}")
     if os.path.exists(filename):
         with open(filename, "r") as f:
-            system_prompt = "\n".join(f.readlines())
+            system_prompt = f.read()
             logger.debug(f"Prompt {system_prompt}")
         return system_prompt
     else:
@@ -987,6 +1121,7 @@ provider_map = {
     "together": TogetherClient,
     "replicate": ReplicateClient,
     "deepinfra": DeepInfraClient,
+    "github": GithubClient,
 }
 
 
@@ -1015,7 +1150,8 @@ def main():
         "--model",
         type=str,
         #default="openai/gpt-4o-mini",
-        default="openai/gpt-3.5-turbo",
+        #default="openai/gpt-3.5-turbo",
+        default="openai/gpt-4.1",
         help="Specify the model to use (default: openai/gpt-4o-mini). Available models can be listed using --list-models.",
     )
     parser.add_argument(
@@ -1082,7 +1218,8 @@ def main():
         "-p",
         "--provider",
         choices=provider_map.keys(),
-        default="openrouter",
+        # default="openrouter",
+        default="github",
         help="Select LLM provider",
     )
     parser.add_argument(
