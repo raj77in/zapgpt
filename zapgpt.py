@@ -866,6 +866,24 @@ class OpenAIClient(BaseLLMClient):
         super().print_model_pricing_table(self.price, filter= filter)
         print("Note: This could be incorrect as this is data provided with script")
 
+    def generate_image(self, prompt):
+        response = self.client.images.generate(
+            model=self.model,
+            prompt=prompt,
+            n=1,
+            size="256x256",  # other options: "512x512", "256x256" (DALL·E 2), or "1024x1024" (DALL·E 3)
+        )
+        image_url = response.data[0].url
+        print("Image URL:", image_url)
+        response = requests.get(image_url)
+        if response.status_code == 200:
+            with open("/tmp/t.png", "wb") as f:
+                f.write(response.content)
+            print("Image written as /tmp/t.png")
+        else:
+            print(f"Failed to download. Status code: {response.status_code}")
+
+
 
 class OpenRouterClient(BaseLLMClient):
 
@@ -1158,7 +1176,7 @@ def main():
         "-up",
         "--use-prompt",
         type=match_abbreviation(prompt_choices),
-        default="default",
+        default=None,
         help=f"Specify a prompt type. Options: {', '.join(prompt_choices)}. Default is 'general'.",
     )
     parser.add_argument(
@@ -1225,6 +1243,7 @@ def main():
     parser.add_argument(
         "-mt",
         "--max-tokens",
+        type=int,
         default=4096,
         help="Use low cost LLM for OpenRouter",
     )
@@ -1233,6 +1252,12 @@ def main():
         "--filter",
         type=str,
         help="Set the logging level.",
+    )
+    parser.add_argument(
+        "-ip",
+        "--image-prompt",
+        type=str,
+        help="Prompt to generate image.",
     )
     parser.add_argument("-o", "--output", default=None, help="The output file to use.")
 
@@ -1283,6 +1308,10 @@ def main():
         output=args.output,
         max_tokens = args.max_tokens,
     )
+
+    if args.image_prompt:
+        llm_client.generate_image(args.image_prompt)
+        return
 
     if args.list_models:
         if args.file:
