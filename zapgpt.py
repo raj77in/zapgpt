@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 ######################################################################
 #
-#      FileName: gpt
+#      FileName: zapgpt
 #
 #
 #        Author: Amit Agarwal
@@ -9,35 +9,34 @@
 #       Version: 1.0
 #       Created: 20250506 22:17:21
 #      Revision: none
-#        Author: Amit Agarwal (aka), <amit.agarwal@mobileum.com>
-#       Company:
-# Last modified: 20250506 22:17:21
-#
+#        Author: Amit Agarwal (aka)
 ######################################################################
 
-import os
-import sys
-import argparse
-from openai.resources import BatchesWithRawResponse
-import requests
 import json
-import sqlite3
-from pathlib import Path
-from typing import List, Dict, Optional
-from rich.logging import RichHandler
-from rich.console import Console
-from rich.table import Table
 import logging
-import time
-from pygments import highlight
-from pygments.lexers import PythonLexer, get_lexer_by_name
-from pygments.formatters import TerminalFormatter
-from tabulate import tabulate
-from openai import OpenAI, responses
-from datetime import datetime
-import tiktoken
+import os
 import re
+import sqlite3
+import sys
+import time
+from argparse import ArgumentParser, ArgumentTypeError
+from datetime import datetime
+from pathlib import Path
+from textwrap import dedent
+from typing import Dict
+
+import requests
+import tiktoken
+from openai import OpenAI
+from pygments import highlight
+from pygments.formatters import TerminalFormatter
+from pygments.lexers import get_lexer_by_name
+from rich.console import Console
+from rich.logging import RichHandler
+from rich.markdown import Markdown
+from rich.table import Table
 from rich_argparse import RichHelpFormatter
+from tabulate import tabulate
 
 # Setup logging
 console = Console()
@@ -55,114 +54,115 @@ model_prompts = {
     "red_team": {
         "model": "openai/gpt-4-turbo",
         "system_prompt": "You are a penetration tester in a red team. Use your knowledge of exploits and attack vectors to craft effective PoC exploits for services.",
-        "assistant_input": "Sure, here's a Python PoC using `socket` to exploit the buffer overflow in the vulnerable service..."
+        "assistant_input": "Sure, here's a Python PoC using `socket` to exploit the buffer overflow in the vulnerable service...",
     },
     "reverse_eng": {
         "model": "anthropic/claude-3-opus",
         "system_prompt": "Analyze the binary code and provide insights into potential vulnerabilities or weaknesses.",
-        "assistant_input": "After disassembling the binary, I noticed a classic stack buffer overflow in the `auth()` function due to unchecked `strcpy` usage..."
+        "assistant_input": "After disassembling the binary, I noticed a classic stack buffer overflow in the `auth()` function due to unchecked `strcpy` usage...",
     },
     "payload_creation": {
         "model": "mistralai/mixtral-8x7b-instruct",
         "system_prompt": "Create a payload for penetration testing that targets a specific system vulnerability.",
-        "assistant_input": "Here’s a reverse shell payload crafted with `msfvenom` targeting Windows x64 over HTTPS..."
+        "assistant_input": "Here’s a reverse shell payload crafted with `msfvenom` targeting Windows x64 over HTTPS...",
     },
     "cyber_awareness": {
         "model": "anthropic/claude-3-sonnet",
         "system_prompt": "Write a professional post on defending against ransomware attacks in corporate environments.",
-        "assistant_input": "Ransomware defense starts with strong endpoint detection, frequent offline backups, and phishing-resistant email filtering."
+        "assistant_input": "Ransomware defense starts with strong endpoint detection, frequent offline backups, and phishing-resistant email filtering.",
     },
     "phishing_campaign": {
         "model": "openai/gpt-3.5-turbo",
         "system_prompt": "Assist in setting up a phishing campaign, including email crafting, social engineering tactics, and payload deployment.",
-        "assistant_input": "Crafted a spoofed Outlook login page and an email that leverages urgency to trick the user into clicking..."
+        "assistant_input": "Crafted a spoofed Outlook login page and an email that leverages urgency to trick the user into clicking...",
     },
     "vuln_assessment": {
         "model": "openai/gpt-4",
         "system_prompt": "Create a comprehensive vulnerability assessment report based on the findings from a recent penetration test.",
-        "assistant_input": "The assessment identified three high-severity issues: unauthenticated RCE, outdated Apache server, and misconfigured S3 buckets..."
+        "assistant_input": "The assessment identified three high-severity issues: unauthenticated RCE, outdated Apache server, and misconfigured S3 buckets...",
     },
     "exploit_dev": {
         "model": "anthropic/claude-3-opus",
         "system_prompt": "Provide guidance on developing an exploit for a discovered vulnerability, including code snippets and attack vectors.",
-        "assistant_input": "You can exploit this heap overflow by corrupting adjacent chunks and redirecting execution flow to a ROP chain..."
+        "assistant_input": "You can exploit this heap overflow by corrupting adjacent chunks and redirecting execution flow to a ROP chain...",
     },
     "soc_reporting": {
         "model": "openai/gpt-3.5-turbo",
         "system_prompt": "Write a detailed report for a Security Operations Center (SOC) regarding the latest security incident.",
-        "assistant_input": "At 03:21 UTC, our EDR detected anomalous PowerShell execution tied to lateral movement from host `SRV-DC-02`..."
+        "assistant_input": "At 03:21 UTC, our EDR detected anomalous PowerShell execution tied to lateral movement from host `SRV-DC-02`...",
     },
     "red_team_planning": {
         "model": "mistralai/mixtral-8x7b-instruct",
         "system_prompt": "Assist in planning a red team engagement, including attack vectors, reconnaissance, and post-exploitation strategies.",
-        "assistant_input": "Initial recon will include passive OSINT on the target org’s domain. The engagement will move into phishing, privilege escalation, and persistence."
+        "assistant_input": "Initial recon will include passive OSINT on the target org’s domain. The engagement will move into phishing, privilege escalation, and persistence.",
     },
     "incident_response": {
         "model": "openai/gpt-4-turbo",
         "system_prompt": "Create an incident response playbook for handling a security breach, including steps for containment, eradication, and recovery.",
-        "assistant_input": "Step 1: Isolate impacted endpoints. Step 2: Identify and terminate malicious processes. Step 3: Deploy remediation scripts and begin forensic analysis..."
+        "assistant_input": "Step 1: Isolate impacted endpoints. Step 2: Identify and terminate malicious processes. Step 3: Deploy remediation scripts and begin forensic analysis...",
     },
     "malware_analysis": {
         "model": "anthropic/claude-3-opus",
         "system_prompt": "Analyze a given piece of malware and describe its behavior, including potential impacts and mitigation strategies.",
-        "assistant_input": "This malware runs as a background process, periodically checks for a C2 server, and can exfiltrate browser credentials via HTTP POST..."
+        "assistant_input": "This malware runs as a background process, periodically checks for a C2 server, and can exfiltrate browser credentials via HTTP POST...",
     },
     "threat_intel": {
         "model": "openai/gpt-4",
         "system_prompt": "Write a detailed threat intelligence report on the latest trends in cyber threats, including recommendations for defense.",
-        "assistant_input": "Q1 2025 shows a surge in AI-assisted phishing and ransomware-as-a-service offerings. Zero-trust and MFA adoption are critical responses..."
+        "assistant_input": "Q1 2025 shows a surge in AI-assisted phishing and ransomware-as-a-service offerings. Zero-trust and MFA adoption are critical responses...",
     },
     "social_attack_sim": {
         "model": "anthropic/claude-3-sonnet",
         "system_prompt": "Simulate an attack on social media platforms, including crafting fake posts and exploiting user vulnerabilities.",
-        "assistant_input": "Posted a fake giveaway with a link to a credential harvester mimicking a known influencer's site. Engagement rate is high within the first hour..."
+        "assistant_input": "Posted a fake giveaway with a link to a credential harvester mimicking a known influencer's site. Engagement rate is high within the first hour...",
     },
     "system_hardening": {
         "model": "openai/gpt-4-turbo",
         "system_prompt": "Provide guidance on hardening a system, including steps for securing the operating system, applications, and network.",
-        "assistant_input": "Disable unused services, enable SELinux/AppArmor, enforce password policies, and segment your network using VLANs..."
+        "assistant_input": "Disable unused services, enable SELinux/AppArmor, enforce password policies, and segment your network using VLANs...",
     },
     "security_policy": {
         "model": "mistralai/mixtral-8x7b-instruct",
         "system_prompt": "Assist in creating a security policy for a company, covering areas such as access control, data protection, and incident response.",
-        "assistant_input": "Policy recommends RBAC with MFA for all privileged access, encrypted data at rest and transit, and quarterly incident response drills..."
+        "assistant_input": "Policy recommends RBAC with MFA for all privileged access, encrypted data at rest and transit, and quarterly incident response drills...",
     },
     "blog_cyber_trends": {
         "model": "openai/gpt-4",
         "system_prompt": "Write a blog post about the latest trends in cybersecurity, focusing on emerging threats and mitigation techniques.",
-        "assistant_input": "Cybersecurity in 2025 is seeing an AI-driven arms race. Defenders must embrace threat intelligence automation to stay ahead..."
+        "assistant_input": "Cybersecurity in 2025 is seeing an AI-driven arms race. Defenders must embrace threat intelligence automation to stay ahead...",
     },
     "social_media_post": {
         "model": "openai/gpt-3.5-turbo",
         "system_prompt": "Write a short, engaging social media post on phishing prevention for a general audience.",
-        "assistant_input": "⚠️ Don’t get hooked! Always double-check sender emails and links. Hover before you click. #PhishingAwareness #CyberSafe"
+        "assistant_input": "⚠️ Don’t get hooked! Always double-check sender emails and links. Hover before you click. #PhishingAwareness #CyberSafe",
     },
     "code_review": {
         "model": "anthropic/claude-3-opus",
         "system_prompt": "Review the provided code snippet from a security perspective and identify potential vulnerabilities.",
-        "assistant_input": "Line 24 uses `eval()` on untrusted input, which could lead to code injection. Consider using `ast.literal_eval` or a safer parsing method..."
+        "assistant_input": "Line 24 uses `eval()` on untrusted input, which could lead to code injection. Consider using `ast.literal_eval` or a safer parsing method...",
     },
     "security_training": {
         "model": "openai/gpt-4-turbo",
         "system_prompt": "Create a training module for employees on how to recognize phishing attempts and other common cyber threats.",
-        "assistant_input": "Module 1: Spotting phishing signs — mismatched URLs, urgent tone, strange attachments. Interactive quiz follows each section."
+        "assistant_input": "Module 1: Spotting phishing signs — mismatched URLs, urgent tone, strange attachments. Interactive quiz follows each section.",
     },
     "security_scripts": {
         "model": "mistralai/mixtral-8x7b-instruct",
         "system_prompt": "Write a Python script to automate security tasks, such as vulnerability scanning or incident response actions.",
-        "assistant_input": "Here's a Python script using `nmap` and `subprocess` to scan the internal network and log open ports into a CSV file..."
+        "assistant_input": "Here's a Python script using `nmap` and `subprocess` to scan the internal network and log open ports into a CSV file...",
     },
     "pentest_summary": {
         "model": "openai/gpt-3.5-turbo",
         "system_prompt": "Summarize the findings of a recent penetration test, highlighting the most critical vulnerabilities and recommendations.",
-        "assistant_input": "3 critical vulns were found: Unrestricted file upload, hardcoded credentials, and exposed management interfaces..."
+        "assistant_input": "3 critical vulns were found: Unrestricted file upload, hardcoded credentials, and exposed management interfaces...",
     },
     "sql_injection": {
         "model": "openai/gpt-4",
         "system_prompt": "Create a guide for exploiting SQL injection vulnerabilities, including techniques for bypassing filters and extracting data.",
-        "assistant_input": "Start with basic `OR '1'='1` injection. Use `UNION SELECT` to extract DB names. Bypass WAFs using inline comments or encodings..."
-    }
+        "assistant_input": "Start with basic `OR '1'='1` injection. Use `UNION SELECT` to extract DB names. Bypass WAFs using inline comments or encodings...",
+    },
 }
+
 
 def pretty(x):
     return f"{x:.10f}".rstrip("0").rstrip(".")
@@ -176,7 +176,7 @@ def color_cost(value):
         else:
             return f"[cyan]{num:.10f}[/cyan]"
     except ValueError:
-        return f"[red]Invalid[/red]"
+        return "[red]Invalid[/red]"
 
 
 def fmt_colored(value):
@@ -226,11 +226,11 @@ def match_abbreviation(options: dict | list[str]):
         if len(matches) == 1:
             return matches[0]
         elif len(matches) > 1:
-            raise argparse.ArgumentTypeError(
+            raise ArgumentTypeError(
                 f"Ambiguous input '{value}' → matches: {', '.join(matches)}"
             )
         else:
-            raise argparse.ArgumentTypeError(
+            raise ArgumentTypeError(
                 f"Invalid input '{value}' → expected one of: {', '.join(valid_keys)}"
             )
 
@@ -238,7 +238,6 @@ def match_abbreviation(options: dict | list[str]):
 
 
 class BaseLLMClient:
-
     def __init__(
         self,
         model: str,
@@ -266,7 +265,6 @@ class BaseLLMClient:
         # logger.debug(f"{self.system_prompt=}")
 
     def init_db(self):
-
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
         c.execute(
@@ -312,8 +310,8 @@ class BaseLLMClient:
             messages.append({"role": "system", "content": self.system_prompt})
         messages.append({"role": "user", "content": query})
         # if model_prompts[self.model]:
-            # logger.debug(f"Adding assistant prompt: {model_prompts[self.model]['assistant_input']}")
-            # messages.append({"role": "assistant", "content": model_prompts[self.model]['assistant_input']})
+        # logger.debug(f"Adding assistant prompt: {model_prompts[self.model]['assistant_input']}")
+        # messages.append({"role": "assistant", "content": model_prompts[self.model]['assistant_input']})
         if self.file:
             logger.debug(f"File is set to {self.file=}")
             try:
@@ -338,7 +336,6 @@ class BaseLLMClient:
         raise NotImplementedError
 
     def send_request(self, prompt: str) -> str:
-
         self.query = prompt
         logger.debug(f"User Prompt is set to {prompt}")
         prompt = self.create_prompt(prompt)
@@ -376,7 +373,7 @@ class BaseLLMClient:
             with open(self.output, "w") as f:
                 f.writelines(reply)
         else:
-            print(f"\n--- RESPONSE ---\n")
+            print("\n--- RESPONSE ---\n")
             print(self.highlight_code(reply, lang="markdown"))
             print("\n--- USAGE ---")
             print(f"Chat ID: {response.id}")
@@ -423,18 +420,16 @@ class BaseLLMClient:
         print(f"\n💸 Total estimated cost so far: ${total:.5f}")
         conn.close()
 
-    def list_available_models(self, batch=False, filter= None):
+    def list_available_models(self, batch=False, filter=None):
         rich_table = Table(title="Model List")
 
-
-        table=[]
-        #headers = ["ID", "Created", "Description", "Context Len", "Modality", "Supported Parameters" ]
+        # headers = ["ID", "Created", "Description", "Context Len", "Modality", "Supported Parameters" ]
         models = self.client.models.list()
         if batch:
             return models
         rich_table.add_column("ID")
         rich_table.add_column("Created")
-        if hasattr(models.data[0], 'context_length'):
+        if hasattr(models.data[0], "context_length"):
             rich_table.add_column("Ctx Len")
             rich_table.add_column("Modality")
         print("\n📦 Available OpenAI Models:")
@@ -442,23 +437,28 @@ class BaseLLMClient:
             # Convert created to humban-readable formatting
             m.created = datetime.fromtimestamp(m.created).strftime("%Y-%m-%d %H:%M:%S")
             # print(f"* {m.id}, Owner: {m.owned_by}, Created: {m.created}")
-            #table.append([ m.id, m.created, m.description, m.context_length, m.architecture["modality"], m.supported_parameters ])
+            # table.append([ m.id, m.created, m.description, m.context_length, m.architecture["modality"], m.supported_parameters ])
             if filter:
                 logger.debug(f"Filter is set to {filter=}")
-                if filter not in m.id and filter not in m.name:
+                logger.debug(f"m is {m=}")
+                if filter not in m.id and filter not in getattr(m, "name", ""):
                     logger.debug(f"Fitlering out {m.id}")
                     continue
-            if hasattr(m, 'context_length'):
-                cl = f"{int(m.context_length / 1000)} K" if m.context_length > 1000 else str(m.context_length)
+            if hasattr(m, "context_length"):
+                cl = (
+                    f"{int(m.context_length / 1000)} K"
+                    if m.context_length > 1000
+                    else str(m.context_length)
+                )
                 logger.debug(f"{m.context_length=} and {cl=}")
-                rich_table.add_row( m.id, m.created, cl , m.architecture["modality"])
+                rich_table.add_row(m.id, m.created, cl, m.architecture["modality"])
             else:
-                rich_table.add_row( m.id, m.created)
-        #print(tabulate(clean_table, headers=headers, tablefmt="fancy_grid", maxcolwidths=[20, 20, 35, 10, 10, 35, 10] ))
+                rich_table.add_row(m.id, m.created)
+        # print(tabulate(clean_table, headers=headers, tablefmt="fancy_grid", maxcolwidths=[20, 20, 35, 10, 10, 35, 10] ))
         # Table format options: plain, simple, grid, fancy_grid, github, pipe, orgtbl, mediawiki, rst, html, latex, jira, pretty
         console.print(rich_table)
 
-    def print_model_pricing_table(self, pricing_data, filter= None):
+    def print_model_pricing_table(self, pricing_data, filter=None):
         # Build list with calculated total cost per 1000 prompt + 1000 output tokens
         rich_table = Table(title="Model Usage Costs")
 
@@ -477,10 +477,10 @@ class BaseLLMClient:
                     continue
             logger.debug(f"{prices=}")
             pc = prices.get("prompt_tokens", 0)
-            prompt_cost = float(pc) *1000 if isinstance(pc, str) else pc
+            prompt_cost = float(pc) * 1000 if isinstance(pc, str) else pc
             oc = prices.get("completion_tokens", 0)
-            output_cost = float(oc) *1000 if isinstance(oc, str) else oc
-            total = (prompt_cost + output_cost) /2
+            output_cost = float(oc) * 1000 if isinstance(oc, str) else oc
+            total = (prompt_cost + output_cost) / 2
             logger.debug(f"{prompt_cost} - {output_cost} - {total}")
             logger.debug(
                 f"{pretty(prompt_cost)} - {pretty(output_cost)} - {pretty(total)}"
@@ -529,7 +529,7 @@ class BaseLLMClient:
 
         else:
             # 3. Fallback to a universal tokenizer
-            warnings.warn(
+            logger.warn(
                 f"[WARN] Model '{model_name}' not recognized. Falling back to cl100k_base tokenizer."
             )
             return tiktoken.get_encoding("cl100k_base")
@@ -580,7 +580,11 @@ class OpenAIClient(BaseLLMClient):
         **kwargs,
     ):
         super().__init__(
-            model=model, system_prompt=system_prompt, temperature=temperature, file=file, max_tokens=max_tokens
+            model=model,
+            system_prompt=system_prompt,
+            temperature=temperature,
+            file=file,
+            max_tokens=max_tokens,
         )
         self.api_key = api_key
         # self.system_prompt = system_prompt
@@ -595,205 +599,183 @@ class OpenAIClient(BaseLLMClient):
             logger.debug(f"No output on screen, {self.output=}")
 
         self.price = {
-            "openai/gpt-4o-audio-preview-2024-12-17": {
+            "gpt-4.1": {"prompt_tokens": 0.002, "completion_tokens": 0.0005},
+            "gpt-4.1-mini": {"prompt_tokens": 0.0004, "completion_tokens": 0.0001},
+            "gpt-4.1-nano": {"prompt_tokens": 0.0001, "completion_tokens": 2.5e-05},
+            "gpt-4.5-preview": {"prompt_tokens": 0.075, "completion_tokens": 0.0375},
+            "gpt-4o": {"prompt_tokens": 0.0025, "completion_tokens": 0.00125},
+            "gpt-4o-audio-preview": {"prompt_tokens": 0.0025, "completion_tokens": 0.0},
+            "gpt-4o-realtime-preview": {
+                "prompt_tokens": 0.005,
+                "completion_tokens": 0.0025,
+            },
+            "gpt-4o-mini": {"prompt_tokens": 0.00015, "completion_tokens": 7.5e-05},
+            "gpt-4o-mini-audio-preview": {
+                "prompt_tokens": 0.00015,
+                "completion_tokens": 0.0,
+            },
+            "gpt-4o-mini-realtime-preview": {
+                "prompt_tokens": 0.0006,
+                "completion_tokens": 0.0003,
+            },
+            "o1": {"prompt_tokens": 0.015, "completion_tokens": 0.0075},
+            "o1-pro": {"prompt_tokens": 0.15, "completion_tokens": 0.0},
+            "o3-pro": {"prompt_tokens": 0.02, "completion_tokens": 0.0},
+            "o3": {"prompt_tokens": 0.002, "completion_tokens": 0.0005},
+            "o4-mini": {"prompt_tokens": 0.0011, "completion_tokens": 0.000275},
+            "o3-mini": {"prompt_tokens": 0.0011, "completion_tokens": 0.00055},
+            "o1-mini": {"prompt_tokens": 0.0011, "completion_tokens": 0.00055},
+            "codex-mini-latest": {
+                "prompt_tokens": 0.0015,
+                "completion_tokens": 0.000375,
+            },
+            "gpt-4o-mini-search-preview": {
+                "prompt_tokens": 0.00015,
+                "completion_tokens": 0.0,
+            },
+            "gpt-4o-search-preview": {
+                "prompt_tokens": 0.0025,
+                "completion_tokens": 0.0,
+            },
+            "computer-use-preview": {"prompt_tokens": 0.003, "completion_tokens": 0.0},
+            "gpt-image-1": {"prompt_tokens": 0.005, "completion_tokens": 0.00125},
+            "o3_flex": {"prompt_tokens": 0.001, "completion_tokens": 0.00025},
+            "o4-mini_flex": {
+                "prompt_tokens": 0.00055,
+                "completion_tokens": 0.00013800000000000002,
+            },
+            "gpt-4o-audio-preview_audio": {
                 "prompt_tokens": 0.04,
                 "completion_tokens": 0.08,
             },
-            "dall-e-3": {"prompt_tokens": 0.04, "completion_tokens": 0.04},
-            "dall-e-2": {"prompt_tokens": 0.02, "completion_tokens": 0.02},
-            "openai/gpt-4o-audio-preview-2024-10-01": {
-                "prompt_tokens": 0.04,
-                "completion_tokens": 0.08,
-            },
-            "openai/gpt-4-turbo-preview": {
+            "gpt-4o-mini-audio-preview_audio": {
                 "prompt_tokens": 0.01,
-                "completion_tokens": 0.03,
+                "completion_tokens": 0.02,
+            },
+            "gpt-4o-realtime-preview_audio": {
+                "prompt_tokens": 0.04,
+                "completion_tokens": 0.08,
+            },
+            "gpt-4o-mini-realtime-preview_audio": {
+                "prompt_tokens": 0.01,
+                "completion_tokens": 0.02,
+            },
+            "gpt-image-1_image_tokens": {
+                "prompt_tokens": 0.01,
+                "completion_tokens": 0.04,
+            },
+            "o4-mini-2025-04-16": {"prompt_tokens": 0.004, "completion_tokens": 0.001},
+            "o4-mini-2025-04-16_with_data_sharing": {
+                "prompt_tokens": 0.002,
+                "completion_tokens": 0.0005,
+            },
+            "gpt-4.1-2025-04-14": {
+                "prompt_tokens": 0.003,
+                "completion_tokens": 0.00075,
+            },
+            "gpt-4.1-mini-2025-04-14": {
+                "prompt_tokens": 0.0008,
+                "completion_tokens": 0.0002,
+            },
+            "gpt-4.1-nano-2025-04-14": {
+                "prompt_tokens": 0.0002,
+                "completion_tokens": 5e-05,
+            },
+            "gpt-4o-2024-08-06": {
+                "prompt_tokens": 0.00375,
+                "completion_tokens": 0.001875,
+            },
+            "gpt-4o-mini-2024-07-18": {
+                "prompt_tokens": 0.0003,
+                "completion_tokens": 0.00015,
+            },
+            "gpt-3.5-turbo_finetune": {
+                "prompt_tokens": 0.003,
+                "completion_tokens": 0.0,
+            },
+            "davinci-002_finetune": {"prompt_tokens": 0.012, "completion_tokens": 0.0},
+            "babbage-002_finetune": {"prompt_tokens": 0.0016, "completion_tokens": 0.0},
+            "gpt-4o-mini-tts": {"prompt_tokens": 0.0006, "completion_tokens": 0.0},
+            "gpt-4o-transcribe": {"prompt_tokens": 0.0025, "completion_tokens": 0.01},
+            "gpt-4o-mini-transcribe": {
+                "prompt_tokens": 0.00125,
+                "completion_tokens": 0.005,
+            },
+            "gpt-4o-mini-tts_audio": {"prompt_tokens": 0.0, "completion_tokens": 0.012},
+            "gpt-4o-transcribe_audio": {
+                "prompt_tokens": 0.006,
+                "completion_tokens": 0.0,
+            },
+            "gpt-4o-mini-transcribe_audio": {
+                "prompt_tokens": 0.003,
+                "completion_tokens": 0.0,
             },
             "text-embedding-3-small": {
-                "prompt_tokens": 0.02,
-                "completion_tokens": 0.02,
+                "prompt_tokens": 2e-05,
+                "completion_tokens": 0.0,
             },
-            "openai/gpt-4-turbo": {"prompt_tokens": 0.01, "completion_tokens": 0.03},
-            "openai/gpt-4-turbo-2024-04-09": {
-                "prompt_tokens": 0.01,
-                "completion_tokens": 0.03,
+            "text-embedding-3-large": {
+                "prompt_tokens": 0.00013000000000000002,
+                "completion_tokens": 0.0,
             },
-            "openai/gpt-4.1-nano": {
-                "prompt_tokens": 0.0001,
-                "completion_tokens": 0.0004,
-            },
-            "openai/gpt-4.1-nano-2025-04-14": {
-                "prompt_tokens": 0.0001,
-                "completion_tokens": 0.0004,
-            },
-            "openai/gpt-4o-realtime-preview-2024-10-01": {
-                "prompt_tokens": 0.0025,
-                "completion_tokens": 0.01,
-            },
-            "openai/gpt-4o-realtime-preview": {
-                "prompt_tokens": 0.0025,
-                "completion_tokens": 0.01,
-            },
-            "babbage-002": {"prompt_tokens": 0.0005, "completion_tokens": 0.0005},
-            "openai/gpt-4": {"prompt_tokens": 0.03, "completion_tokens": 0.06},
             "text-embedding-ada-002": {
                 "prompt_tokens": 0.0001,
-                "completion_tokens": 0.0001,
+                "completion_tokens": 0.0,
             },
-            "chatopenai/gpt-4o-latest": {
-                "prompt_tokens": 0.0025,
-                "completion_tokens": 0.01,
+            "omni-moderation-latest": {"prompt_tokens": 0.0, "completion_tokens": 0.0},
+            "text-moderation-latest": {"prompt_tokens": 0.0, "completion_tokens": 0.0},
+            "text-moderation-007": {"prompt_tokens": 0.0, "completion_tokens": 0.0},
+            "chatgpt-4o-latest": {"prompt_tokens": 0.005, "completion_tokens": 0.015},
+            "gpt-4-turbo": {"prompt_tokens": 0.01, "completion_tokens": 0.03},
+            "gpt-4": {"prompt_tokens": 0.03, "completion_tokens": 0.06},
+            "gpt-4-32k": {"prompt_tokens": 0.06, "completion_tokens": 0.12},
+            "gpt-3.5-turbo-0125": {
+                "prompt_tokens": 0.0005,
+                "completion_tokens": 0.0015,
             },
-            "openai/gpt-4o-realtime-preview-2024-12-17": {
-                "prompt_tokens": 0.0025,
-                "completion_tokens": 0.01,
-            },
-            "openai/gpt-4o-mini-audio-preview": {
-                "prompt_tokens": 0.01,
-                "completion_tokens": 0.02,
-            },
-            "openai/gpt-4o-audio-preview": {
-                "prompt_tokens": 0.04,
-                "completion_tokens": 0.08,
-            },
-            "o1-preview-2024-09-12": {"prompt_tokens": 0.05, "completion_tokens": 0.10},
-            "openai/gpt-4o-mini-realtime-preview": {
-                "prompt_tokens": 0.0025,
-                "completion_tokens": 0.01,
-            },
-            "openai/gpt-4.1-mini": {
-                "prompt_tokens": 0.0008,
-                "completion_tokens": 0.0032,
-            },
-            "openai/gpt-4o-mini-realtime-preview-2024-12-17": {
-                "prompt_tokens": 0.0025,
-                "completion_tokens": 0.01,
-            },
-            "openai/gpt-3.5-turbo-instruct-0914": {
+            "gpt-3.5-turbo-instruct": {
                 "prompt_tokens": 0.0015,
                 "completion_tokens": 0.002,
             },
-            "openai/gpt-4o-mini-search-preview": {
-                "prompt_tokens": 0.0025,
-                "completion_tokens": 0.01,
-            },
-            "openai/gpt-4.1-mini-2025-04-14": {
-                "prompt_tokens": 0.0008,
-                "completion_tokens": 0.0032,
-            },
-            "davinci-002": {"prompt_tokens": 0.02, "completion_tokens": 0.02},
-            "openai/gpt-3.5-turbo-1106": {
-                "prompt_tokens": 0.0015,
-                "completion_tokens": 0.002,
-            },
-            "openai/gpt-4o-search-preview": {
-                "prompt_tokens": 0.0025,
-                "completion_tokens": 0.01,
-            },
-            "openai/gpt-3.5-turbo-instruct": {
-                "prompt_tokens": 0.0015,
-                "completion_tokens": 0.002,
-            },
-            "openai/gpt-3.5-turbo": {
-                "prompt_tokens": 0.0015,
-                "completion_tokens": 0.002,
-            },
-            "openai/gpt-4o-mini-search-preview-2025-03-11": {
-                "prompt_tokens": 0.0025,
-                "completion_tokens": 0.01,
-            },
-            "openai/gpt-4-0125-preview": {
-                "prompt_tokens": 0.01,
-                "completion_tokens": 0.03,
-            },
-            "openai/gpt-4o-2024-11-20": {
-                "prompt_tokens": 0.0025,
-                "completion_tokens": 0.01,
-            },
-            "whisper-1": {"prompt_tokens": 0.006, "completion_tokens": 0.006},
-            "openai/gpt-4o-2024-05-13": {
-                "prompt_tokens": 0.0025,
-                "completion_tokens": 0.01,
-            },
-            "openai/gpt-3.5-turbo-16k": {
+            "gpt-3.5-turbo-16k-0613": {
                 "prompt_tokens": 0.003,
                 "completion_tokens": 0.004,
             },
-            "openai/gpt-image-1": {"prompt_tokens": 0.04, "completion_tokens": 0.04},
-            "o1-preview": {"prompt_tokens": 0.05, "completion_tokens": 0.10},
-            "openai/gpt-4-0613": {"prompt_tokens": 0.03, "completion_tokens": 0.06},
-            "text-embedding-3-large": {
-                "prompt_tokens": 0.13,
-                "completion_tokens": 0.13,
+            "davinci-002_other": {"prompt_tokens": 0.002, "completion_tokens": 0.002},
+            "babbage-002_other": {"prompt_tokens": 0.0004, "completion_tokens": 0.0004},
+            "Code_Interpreter": {
+                "prompt_tokens": 2.9999999999999997e-05,
+                "completion_tokens": 2.9999999999999997e-05,
             },
-            "openai/gpt-4o-mini-tts": {
-                "prompt_tokens": 0.0006,
-                "completion_tokens": 0.012,
+            "File_Search_Storage": {
+                "prompt_tokens": 0.0001,
+                "completion_tokens": 0.0001,
             },
-            "openai/gpt-4o-transcribe": {
-                "prompt_tokens": 0.006,
-                "completion_tokens": 0.006,
-            },
-            "openai/gpt-4.5-preview": {
-                "prompt_tokens": 0.075,
-                "completion_tokens": 0.075,
-            },
-            "openai/gpt-4.5-preview-2025-02-27": {
-                "prompt_tokens": 0.075,
-                "completion_tokens": 0.075,
-            },
-            "openai/gpt-4o-mini-transcribe": {
-                "prompt_tokens": 0.006,
-                "completion_tokens": 0.006,
-            },
-            "openai/gpt-4o-search-preview-2025-03-11": {
+            "File_Search_Tool_Call": {
                 "prompt_tokens": 0.0025,
-                "completion_tokens": 0.01,
+                "completion_tokens": 0.0025,
             },
-            "omni-moderation-2024-09-26": {
-                "prompt_tokens": 0.0005,
-                "completion_tokens": 0.0005,
+            "gpt-4.1_search_low": {"prompt_tokens": 0.03, "completion_tokens": 0.03},
+            "gpt-4.1_search_medium": {
+                "prompt_tokens": 0.035,
+                "completion_tokens": 0.035,
             },
-            "tts-1-hd": {"prompt_tokens": 0.0006, "completion_tokens": 0.012},
-            "openai/gpt-4o": {"prompt_tokens": 0.0025, "completion_tokens": 0.01},
-            "tts-1-hd-1106": {"prompt_tokens": 0.0006, "completion_tokens": 0.012},
-            "openai/gpt-4o-mini": {
-                "prompt_tokens": 0.00015,
-                "completion_tokens": 0.0006,
+            "gpt-4.1_search_high": {"prompt_tokens": 0.05, "completion_tokens": 0.05},
+            "gpt-4.1-mini_search_low": {
+                "prompt_tokens": 0.025,
+                "completion_tokens": 0.025,
             },
-            "openai/gpt-4o-2024-08-06": {
-                "prompt_tokens": 0.0025,
-                "completion_tokens": 0.01,
+            "gpt-4.1-mini_search_medium": {
+                "prompt_tokens": 0.0275,
+                "completion_tokens": 0.0275,
             },
-            "openai/gpt-4.1": {"prompt_tokens": 0.003, "completion_tokens": 0.012},
-            "openai/gpt-4.1-2025-04-14": {
-                "prompt_tokens": 0.003,
-                "completion_tokens": 0.012,
-            },
-            "openai/gpt-4o-mini-2024-07-18": {
-                "prompt_tokens": 0.00015,
-                "completion_tokens": 0.0006,
-            },
-            "o1-mini": {"prompt_tokens": 0.01, "completion_tokens": 0.02},
-            "openai/gpt-4o-mini-audio-preview-2024-12-17": {
-                "prompt_tokens": 0.01,
-                "completion_tokens": 0.02,
-            },
-            "openai/gpt-3.5-turbo-0125": {
-                "prompt_tokens": 0.0015,
-                "completion_tokens": 0.002,
-            },
-            "o1-mini-2024-09-12": {"prompt_tokens": 0.01, "completion_tokens": 0.02},
-            "tts-1": {"prompt_tokens": 0.0006, "completion_tokens": 0.012},
-            "openai/gpt-4-1106-preview": {
-                "prompt_tokens": 0.01,
+            "gpt-4.1-mini_search_high": {
+                "prompt_tokens": 0.03,
                 "completion_tokens": 0.03,
             },
-            "tts-1-1106": {"prompt_tokens": 0.0006, "completion_tokens": 0.012},
-            "omni-moderation-latest": {
-                "prompt_tokens": 0.0005,
-                "completion_tokens": 0.0005,
-            },
+            "Whisper": {"prompt_tokens": 6e-06, "completion_tokens": 0.0},
+            "TTS": {"prompt_tokens": 0.015, "completion_tokens": 0.0},
+            "TTS_HD": {"prompt_tokens": 0.03, "completion_tokens": 0.0},
         }
 
     def build_payload(self, prompt: str) -> Dict:
@@ -816,11 +798,11 @@ class OpenAIClient(BaseLLMClient):
             raise EnvironmentError(
                 "Missing required environment variable: OPENAI_ADMIN_KEY"
             )
-        client = OpenAIClient(
-            # This is the default and can be omitted
-            model="nothing",
-            api_key=admin_key,
-        )
+        # client = OpenAIClient(
+        #     # This is the default and can be omitted
+        #     model="nothing",
+        #     api_key=admin_key,
+        # )
 
         headers = {"Authorization": f"Bearer {admin_key}"}
         # Refer: https://platform.openai.com/docs/api-reference/usage/costs
@@ -842,7 +824,7 @@ class OpenAIClient(BaseLLMClient):
                 for r in i["results"]:
                     logger.debug(f"New Line: {r=}")
                     table.append(
-                        [r["line_item"], f'{r["amount"]["value"]:.8f}', r["project_id"]]
+                        [r["line_item"], f"{r['amount']['value']:.8f}", r["project_id"]]
                     )
                     logger.debug(
                         f"""Adding [r["line_item"], f'{r["amount"]["value"]:.10f}', r["project_id"]])"""
@@ -862,8 +844,8 @@ class OpenAIClient(BaseLLMClient):
         print(tabulate(table, headers=headers, tablefmt="fancy_grid"))
         print(f"\nTotal Cost: {a:.8f}")
 
-    def print_model_pricing_table(self, filter= None):
-        super().print_model_pricing_table(self.price, filter= filter)
+    def print_model_pricing_table(self, filter=None):
+        super().print_model_pricing_table(self.price, filter=filter)
         print("Note: This could be incorrect as this is data provided with script")
 
     def generate_image(self, prompt):
@@ -884,9 +866,7 @@ class OpenAIClient(BaseLLMClient):
             print(f"Failed to download. Status code: {response.status_code}")
 
 
-
 class OpenRouterClient(BaseLLMClient):
-
     def get_endpoint(self) -> str:
         return "https://openrouter.ai/api/v1/"
 
@@ -898,14 +878,18 @@ class OpenRouterClient(BaseLLMClient):
         temperature: int = 0.7,
         system_prompt: str = None,
         output: str = "",
-        max_tokens : int = 4096,
+        max_tokens: int = 4096,
         **kwargs,
     ):
         super().__init__(
-            model=model, system_prompt=system_prompt, temperature=temperature, file=file, max_tokens=max_tokens
+            model=model,
+            system_prompt=system_prompt,
+            temperature=temperature,
+            file=file,
+            max_tokens=max_tokens,
         )
         self.get_key("OPENROUTER_KEY")
-        logger.debug ("using auto routing with lowest cost model")
+        logger.debug("using auto routing with lowest cost model")
         # self.system_prompt = system_prompt
         # logger.debug(f"system prompt {self.system_prompt=}")
         self.client = OpenAI(api_key=self.api_key, base_url=self.get_endpoint())
@@ -917,7 +901,7 @@ class OpenRouterClient(BaseLLMClient):
         self.price = {}
         models = self.list_available_models(batch=True)
         for m in models.data:
-            #logger.debug(f"{m}")
+            # logger.debug(f"{m}")
             self.price[m.id] = {
                 "prompt_tokens": m.pricing["prompt"],
                 "completion_tokens": m.pricing["completion"],
@@ -931,10 +915,9 @@ class OpenRouterClient(BaseLLMClient):
         print(f"Total Usage: {d['total_usage']:.6f}")
 
     def print_model_pricing_table(self, filter=None):
-        super().print_model_pricing_table(self.price, filter= filter)
+        super().print_model_pricing_table(self.price, filter=filter)
 
     def send_request(self, prompt: str) -> str:
-
         self.query = prompt
         logger.debug(f"User Prompt is set to {prompt}")
         prompt = self.create_prompt(prompt)
@@ -956,6 +939,7 @@ class OpenRouterClient(BaseLLMClient):
         response = self.client.chat.completions.create(**params)
         logger.debug(f"{response=}")
         return response
+
 
 class TogetherClient(OpenAIClient):
     def get_endpoint(self) -> str:
@@ -982,16 +966,17 @@ class ReplicateClient(BaseLLMClient):
         }
 
     def get_endpoint(self) -> str:
-        return f"https://api.replicate.com/v1/predictions"
+        return "https://api.replicate.com/v1/predictions"
 
     def handle_response(self, response_json: Dict) -> str:
         output = response_json.get("output", "")
-        track_usage(self.model, "replicate", 0)
+        # self.track_usage(self.model, "replicate", 0)
         return output
+
 
 class GithubClient(BaseLLMClient):
     def get_endpoint(self) -> str:
-        return f"https://models.github.ai/inference/chat/completions"
+        return "https://models.github.ai/inference/chat/completions"
 
     def __init__(
         self,
@@ -1001,14 +986,18 @@ class GithubClient(BaseLLMClient):
         temperature: int = 0.7,
         system_prompt: str = None,
         output: str = "",
-        max_tokens : int = 4096,
+        max_tokens: int = 4096,
         **kwargs,
     ):
         super().__init__(
-            model=model, system_prompt=system_prompt, temperature=temperature, file=file, max_tokens=max_tokens
+            model=model,
+            system_prompt=system_prompt,
+            temperature=temperature,
+            file=file,
+            max_tokens=max_tokens,
         )
         self.get_key("GITHUB_KEY")
-        logger.debug ("using auto routing with lowest cost model")
+        logger.debug("using auto routing with lowest cost model")
         # self.system_prompt = system_prompt
         # logger.debug(f"system prompt {self.system_prompt=}")
         self.client = OpenAI(api_key=self.api_key, base_url=self.get_endpoint())
@@ -1017,7 +1006,11 @@ class GithubClient(BaseLLMClient):
             self.output = output
             logger.debug(f"No output on screen, {self.output=}")
 
-        self.headers = {"Accept": "application/vnd.github+json", "Authorization": "Bearer "+self.api_key, "GitHub-Api-Version": "2022-11-28"}
+        self.headers = {
+            "Accept": "application/vnd.github+json",
+            "Authorization": "Bearer " + self.api_key,
+            "GitHub-Api-Version": "2022-11-28",
+        }
         self.price = {}
         models = self.list_available_models(batch=True)
         for m in models:
@@ -1036,16 +1029,17 @@ class GithubClient(BaseLLMClient):
         print(f"Total Usage: {d['total_usage']:.6f}")
 
     def print_model_pricing_table(self, filter=None):
-        super().print_model_pricing_table(self.price, filter= filter)
+        super().print_model_pricing_table(self.price, filter=filter)
 
     def list_available_models(self, batch=False, filter=None):
-        models = requests.get("https://models.github.ai/catalog/models", headers=self.headers).json()
+        models = requests.get(
+            "https://models.github.ai/catalog/models", headers=self.headers
+        ).json()
         logger.debug(f"All Models: {models}")
         rich_table = Table(title="Model List")
 
-
-        table=[]
-        #headers = ["ID", "Created", "Description", "Context Len", "Modality", "Supported Parameters" ]
+        # table = []
+        # headers = ["ID", "Created", "Description", "Context Len", "Modality", "Supported Parameters" ]
         if batch:
             return models
         rich_table.add_column("ID")
@@ -1058,19 +1052,25 @@ class GithubClient(BaseLLMClient):
         for m in models:
             # Convert created to humban-readable formatting
             # print(f"* {m.id}, Owner: {m.owned_by}, Created: {m.created}")
-            #table.append([ m.id, m.created, m.description, m.context_length, m.architecture["modality"], m.supported_parameters ])
+            # table.append([ m.id, m.created, m.description, m.context_length, m.architecture["modality"], m.supported_parameters ])
             if filter:
                 logger.debug(f"Filter is set to {filter=}")
                 if filter not in m["id"] and filter not in m["name"]:
-                    logger.debug(f"Fitlering out {m["id"]}")
+                    logger.debug(f"Fitlering out {m['id']}")
                     continue
-            rich_table.add_row( m["id"], m["name"], m["publisher"], m["rate_limit_tier"], ','.join(m["supported_input_modalities"]), ','.join(m["supported_output_modalities"]))
-        #print(tabulate(clean_table, headers=headers, tablefmt="fancy_grid", maxcolwidths=[20, 20, 35, 10, 10, 35, 10] ))
+            rich_table.add_row(
+                m["id"],
+                m["name"],
+                m["publisher"],
+                m["rate_limit_tier"],
+                ",".join(m["supported_input_modalities"]),
+                ",".join(m["supported_output_modalities"]),
+            )
+        # print(tabulate(clean_table, headers=headers, tablefmt="fancy_grid", maxcolwidths=[20, 20, 35, 10, 10, 35, 10] ))
         # Table format options: plain, simple, grid, fancy_grid, github, pipe, orgtbl, mediawiki, rst, html, latex, jira, pretty
         console.print(rich_table)
 
     def send_request(self, prompt: str) -> str:
-
         self.query = prompt
         logger.debug(f"User Prompt is set to {prompt}")
         prompt = self.create_prompt(prompt)
@@ -1089,8 +1089,10 @@ class GithubClient(BaseLLMClient):
             "top_p": 1.0,
         }
         logger.debug(f"Making request with {params=} using requests")
-        #response = self.client.chat.completions.create(**params)
-        response = requests.post(self.get_endpoint(), headers=self.headers, json=params).json()
+        # response = self.client.chat.completions.create(**params)
+        response = requests.post(
+            self.get_endpoint(), headers=self.headers, json=params
+        ).json()
         logger.debug(f"{response=}")
 
         return response
@@ -1105,7 +1107,7 @@ class GithubClient(BaseLLMClient):
             with open(self.output, "w") as f:
                 f.writelines(reply)
         else:
-            print(f"\n--- RESPONSE ---\n")
+            print("\n--- RESPONSE ---\n")
             print(self.highlight_code(reply, lang="markdown"))
             print("\n--- USAGE ---")
             print(f"Prompt tokens: {self.prompt_tokens}")
@@ -1123,6 +1125,7 @@ class GithubClient(BaseLLMClient):
             provider="github",
         )
 
+
 def get_prompt(filename):
     logger.debug(f"Prompt file is {filename}")
     if os.path.exists(filename):
@@ -1132,6 +1135,7 @@ def get_prompt(filename):
         return system_prompt
     else:
         return ""
+
 
 provider_map = {
     "openai": OpenAIClient,
@@ -1143,32 +1147,56 @@ provider_map = {
 }
 
 
+class MyHelpFormatter(RichHelpFormatter):
+    def __init__(self, prog):
+        RichHelpFormatter.__init__(prog, rich_terminal=False, width=100)
+
+
+epilog = Markdown(
+    dedent("""
+### Example usage:
+  * `gpt "What's the capital of France?"`
+  * `gpt "Refactor this function" --model openai/gpt-4`
+  * `gpt --history`
+  * `gpt --total`
+  * `gpt --list-models`
+  * `gpt "Give me a plan for a YouTube channel" --use-prompt`
+""")
+)
+
+
 def main():
+    ## Add zapgpt logo, this will not go to output file.
+    console.print(
+        """
+███████╗ █████╗ ██████╗  ██████╗ ██████╗ ████████╗
+╚══███╔╝██╔══██╗██╔══██╗██╔════╝ ██╔══██╗╚══██╔══╝
+  ███╔╝ ███████║██████╔╝██║  ███╗██████╔╝   ██║
+ ███╔╝  ██╔══██║██╔═══╝ ██║   ██║██╔═══╝    ██║
+███████╗██║  ██║██║     ╚██████╔╝██║        ██║
+╚══════╝╚═╝  ╚═╝╚═╝      ╚═════╝ ╚═╝        ╚═╝
+    """,
+        style="green",
+        markup=False,
+    )
     # print(f"{current_script_path=}")
     prompt_choices = get_filenames_without_extension(
         str(current_script_path) + "/prompts"
     )
     prompt_choices += model_prompts.keys()
-    parser = argparse.ArgumentParser(
+    parser = ArgumentParser(
         description="💬 GPT CLI Tracker: Ask OpenAI models, track usage and cost.",
         formatter_class=RichHelpFormatter,
-        epilog="""
-          gpt "What's the capital of France?"
-          gpt "Refactor this function" --model openai/gpt-4
-          gpt --history
-          gpt --total
-          gpt --list-models
-          gpt "Give me a plan for a YouTube channel" --use-prompt
-        """,
-        #formatter_class=argparse.RawTextHelpFormatter,
+        # formatter_class=argparse.RawTextHelpFormatter,
+        epilog=epilog,
     )
     parser.add_argument("query", nargs="?", type=str, help="Your prompt or question")
     parser.add_argument(
         "-m",
         "--model",
         type=str,
-        #default="openai/gpt-4o-mini",
-        #default="openai/gpt-3.5-turbo",
+        # default="openai/gpt-4o-mini",
+        # default="openai/gpt-3.5-turbo",
         default="openai/gpt-4.1",
         help="Specify the model to use (default: openai/gpt-4o-mini). Available models can be listed using --list-models.",
     )
@@ -1178,6 +1206,12 @@ def main():
         type=match_abbreviation(prompt_choices),
         default=None,
         help=f"Specify a prompt type. Options: {', '.join(prompt_choices)}. Default is 'general'.",
+    )
+    parser.add_argument(
+        "-lsp",
+        "--list-prompt",
+        action='store_true',
+        help="List all the prompts",
     )
     parser.add_argument(
         "-hi",
@@ -1215,7 +1249,7 @@ def main():
         "-u",
         "--usage",
         required=False,
-        nargs='?',
+        nargs="?",
         const=10,
         # default=10,
         type=int,
@@ -1262,10 +1296,19 @@ def main():
     parser.add_argument("-o", "--output", default=None, help="The output file to use.")
 
     args = parser.parse_args()
+
+    if args.list_prompt:
+        for i in prompt_choices:
+            print (f"* {i}")
+        return
+
+    logger.info(f"{args.model=}, {args.provider=}, {args.max_tokens=}")
+
     model = args.model
     logger.debug(f"Arguments {args=}")
     try:
         logger.setLevel(getattr(logging, args.log_level.upper()))
+        logger.debug(f"Log level is set to {args.log_level.upper()}")
     except Exception as e:
         logger.error(f"Invalid log level: {e}")
     # print(f"Log Level: {args=}")
@@ -1306,7 +1349,7 @@ def main():
         temperature=args.temp,
         file=args.file,
         output=args.output,
-        max_tokens = args.max_tokens,
+        max_tokens=args.max_tokens,
     )
 
     if args.image_prompt:
