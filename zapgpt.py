@@ -38,7 +38,7 @@ from rich.table import Table
 from rich_argparse import RichHelpFormatter
 from tabulate import tabulate
 
-# Setup logging
+# Setup logging using rich handler for pretty output.
 console = Console()
 logging.basicConfig(
     level=logging.INFO,
@@ -165,10 +165,12 @@ model_prompts = {
 
 
 def pretty(x):
+    """Format a float to 10 decimal places, removing trailing zeros."""
     return f"{x:.10f}".rstrip("0").rstrip(".")
 
 
 def color_cost(value):
+    """Return a color-coded string for cost values."""
     try:
         num = float(value)
         if num == 0:
@@ -176,17 +178,22 @@ def color_cost(value):
         else:
             return f"[cyan]{num:.10f}[/cyan]"
     except ValueError:
+        logger.error(f"Failed to color cost for invalid value: {value}")
         return "[red]Invalid[/red]"
 
 
 def fmt_colored(value):
+    """Color the value green if zero, cyan otherwise."""
     num = float(value)
     color = "green" if num == 0 else "cyan"
     return f"[{color}]{num:.10f}[/{color}]"
 
 
 def get_filenames_without_extension(folder_path):
-    # List to hold the filenames without the .txt extension
+    """
+    List all filenames in a folder without the .txt extension.
+    """
+    logger.debug(f"Scanning folder for .txt files: {folder_path}")
     filenames = []
 
     # Iterate through all files in the specified folder
@@ -194,8 +201,9 @@ def get_filenames_without_extension(folder_path):
         # Check if the file has a .txt extension
         if filename.endswith(".txt"):
             # Remove the .txt extension and add to the list
+            logger.debug(f"Found prompt file: {filename}")
             filenames.append(filename[:-4])  # Remove the last 4 characters ('.txt')
-
+    logger.info(f"Found {len(filenames)} prompt files in {folder_path}")
     return filenames
 
 
@@ -217,19 +225,23 @@ def match_abbreviation(options: dict | list[str]):
     """
 
     # Convert to list if a dict is passed
+    logger.debug(f"Preparing abbreviation matcher for options: {options}")
     valid_keys = list(options.keys()) if isinstance(options, dict) else list(options)
 
     def _match(value: str) -> str:
+        logger.debug(f"Trying to match user input '{value}'")
         value = value.strip().lower()
         matches = [key for key in valid_keys if key.lower().startswith(value)]
 
         if len(matches) == 1:
+            logger.info(f"Matched input '{value}' to option '{matches[0]}'")
             return matches[0]
         elif len(matches) > 1:
             raise ArgumentTypeError(
                 f"Ambiguous input '{value}' → matches: {', '.join(matches)}"
             )
         else:
+            logger.error(f"Invalid input '{value}' for options {valid_keys}")
             raise ArgumentTypeError(
                 f"Invalid input '{value}' → expected one of: {', '.join(valid_keys)}"
             )
@@ -238,6 +250,11 @@ def match_abbreviation(options: dict | list[str]):
 
 
 class BaseLLMClient:
+    """
+    Base client for LLM providers.
+    Handles prompt creation, logging, cost tracking, and general request flow.
+    """
+
     def __init__(
         self,
         model: str,
@@ -247,6 +264,7 @@ class BaseLLMClient:
         output: str = "",
         file: str = None,
     ):
+        logger.debug(f"Initializing BaseLLMClient with model={model}, output={output}, file={file}")
         self.model = model
         self.system_prompt = system_prompt
         self.max_tokens = max_tokens
@@ -265,6 +283,10 @@ class BaseLLMClient:
         # logger.debug(f"{self.system_prompt=}")
 
     def init_db(self):
+        """
+        Create the usage database if it does not exist.
+        """
+        logger.info(f"Initializing database at {DB_FILE}")
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
         c.execute(
@@ -272,6 +294,7 @@ class BaseLLMClient:
         )
         conn.commit()
         conn.close()
+        logger.debug("Database initialized (if not already present)")
 
     def record_usage(
         self,
@@ -283,6 +306,10 @@ class BaseLLMClient:
         cost: int,
         query: int,
     ):
+        """
+        Record a model usage event to the database.
+        """
+        logger.info(f"Recording usage for model={model}, provider={provider}, tokens={prompt_tokens + completion_tokens}, cost={cost}")
         conn = sqlite3.connect(DB_FILE)
         logger.debug(f"Opened {DB_FILE=}")
         cursor = conn.cursor()
@@ -303,8 +330,13 @@ class BaseLLMClient:
         )
         conn.commit()
         conn.close()
+        logger.debug("Usage record inserted and connection closed.")
 
     def create_prompt(self, query: str):
+        """
+        Build the prompt messages, optionally including a system prompt and file content.
+        """
+        logger.debug(f"Creating prompt for query: {query}")
         messages = []
         if self.system_prompt:
             messages.append({"role": "system", "content": self.system_prompt})
@@ -327,15 +359,31 @@ class BaseLLMClient:
         return messages
 
     def build_payload(self, prompt: str) -> Dict:
+        """
+        Should be implemented by subclasses to build the payload for the API request.
+        """
+        logger.debug("build_payload called on BaseLLMClient (should be overridden)")
         raise NotImplementedError
 
     def get_headers(self) -> Dict:
+        """
+        Should be implemented by subclasses to return HTTP headers for API requests.
+        """
+        logger.debug("get_headers called on BaseLLMClient (should be overridden)")
         raise NotImplementedError
 
     def get_endpoint(self) -> str:
+        """
+        Should be implemented by subclasses to return the API endpoint URL.
+        """
+        logger.debug("get_endpoint called on BaseLLMClient (should be overridden)")
         raise NotImplementedError
 
     def send_request(self, prompt: str) -> str:
+        """
+        Send a chat completion request to the API and return the response.
+        """
+        logger.info(f"Sending request to LLM for model={self.model}")
         self.query = prompt
         logger.debug(f"User Prompt is set to {prompt}")
         prompt = self.create_prompt(prompt)
@@ -362,6 +410,10 @@ class BaseLLMClient:
     #     raise NotImplementedError
 
     def handle_response(self, response: str) -> str:
+        """
+        Print and log the LLM response, cost, and usage info.
+        """
+        logger.debug("Handling LLM response")
         logger.debug(f"{response.model_dump()}")
         logger.debug(f"Chat ID: {response.id}")
         reply = response.choices[0].message.content
@@ -370,6 +422,7 @@ class BaseLLMClient:
         cost = self.get_price(self.model, self.prompt_tokens, completion_tokens)
 
         if self.output:
+            logger.info(f"Writing response to output file: {self.output}")
             with open(self.output, "w") as f:
                 f.writelines(reply)
         else:
@@ -393,14 +446,27 @@ class BaseLLMClient:
         )
 
     def add_to_history(self, role: str, content: str):
+        """
+        Add a chat message to the in-memory history.
+        """
+        logger.debug(f"Adding to history: {role=}, content length={len(content)}")
         self.chat_history.append({"role": role, "content": content})
 
     def highlight_code(self, code: str, lang: str = "python") -> str:
+        """
+        Color syntax highlight a code block for terminal output.
+        """
+        logger.debug(f"Highlighting code output for lang={lang}")
         lexer = get_lexer_by_name(lang, stripall=True)
         formatter = TerminalFormatter()
         return highlight(code, lexer, formatter)
 
+    @staticmethod
     def show_history():
+        """
+        Print past model usage history from the database.
+        """
+        logger.info("Displaying model usage history from the database")
         conn = sqlite3.connect(DB_FILE)
         logger.debug(f"Opened {DB_FILE=}")
         cursor = conn.cursor()
@@ -408,24 +474,36 @@ class BaseLLMClient:
             "SELECT timestamp, model, total_tokens, cost, query FROM usage ORDER BY timestamp DESC"
         ):
             print(
-                f"[{row[0]}] model={row[1]} tokens={row[2]} cost=${row[3]:.5f}\nquery: {row[4][:60]}...\n"
+                f"[{row[0]}] model={row[1]} tokens={row[2]} cost=${row[3]:.5f}\nquery: {row[4]}...\n"
             )
         conn.close()
+        logger.debug("Closed DB after history display.")
 
+    @staticmethod
     def show_total_cost():
+        """
+        Print the total cost from all model usage.
+        """
+        logger.info("Fetching and displaying total cost from DB")
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
         cursor.execute("SELECT SUM(cost) FROM usage")
         total = cursor.fetchone()[0] or 0.0
         print(f"\n💸 Total estimated cost so far: ${total:.5f}")
         conn.close()
+        logger.debug("Closed DB after total cost calculation.")
 
     def list_available_models(self, batch=False, filter=None):
+        """
+        List available models from the provider, optionally filtering.
+        """
+        logger.info("Fetching available model list")
         rich_table = Table(title="Model List")
 
         # headers = ["ID", "Created", "Description", "Context Len", "Modality", "Supported Parameters" ]
         models = self.client.models.list()
         if batch:
+            logger.debug("Batch mode enabled, returning raw models data")
             return models
         rich_table.add_column("ID")
         rich_table.add_column("Created")
@@ -457,9 +535,13 @@ class BaseLLMClient:
         # print(tabulate(clean_table, headers=headers, tablefmt="fancy_grid", maxcolwidths=[20, 20, 35, 10, 10, 35, 10] ))
         # Table format options: plain, simple, grid, fancy_grid, github, pipe, orgtbl, mediawiki, rst, html, latex, jira, pretty
         console.print(rich_table)
+        logger.debug("Model list printed.")
 
     def print_model_pricing_table(self, pricing_data, filter=None):
-        # Build list with calculated total cost per 1000 prompt + 1000 output tokens
+        """
+        Print a table of model pricing, optionally filtered.
+        """
+        logger.info("Printing model pricing table")
         rich_table = Table(title="Model Usage Costs")
 
         rich_table.add_column("Model")
@@ -473,9 +555,9 @@ class BaseLLMClient:
         for model, prices in sorted_data:
             if filter:
                 if filter not in model:
-                    logger.debug("Exlcluding {model} due to filter")
+                    logger.debug(f"Excluding {model} due to filter")
                     continue
-            logger.debug(f"{prices=}")
+            logger.debug(f"Pricing for {model}: {prices}")
             pc = prices.get("prompt_tokens", 0)
             prompt_cost = float(pc) * 1000 if isinstance(pc, str) else pc
             oc = prices.get("completion_tokens", 0)
@@ -493,20 +575,18 @@ class BaseLLMClient:
             )
 
         console.print(rich_table)
+        logger.debug("Pricing table printed.")
 
     def get_tokenizer(self, model_name: str):
         """
         Return an appropriate tokenizer encoding for the given model.
-
-        If the model is not recognized by tiktoken, it uses heuristics to choose
-        a reasonable fallback.
+        Uses heuristics if the model is not recognized by tiktoken.
         """
-
-        # 1. Try the default tiktoken logic
+        logger.debug(f"Getting tokenizer for model_name={model_name}")
         try:
             return tiktoken.encoding_for_model(model_name)
         except KeyError:
-            pass  # Go to heuristic matching
+            logger.warning(f"Model '{model_name}' not found in tiktoken. Using fallback heuristics.")
 
         # 2. Model-specific heuristics
         model_name_lower = model_name.lower()
@@ -529,27 +609,28 @@ class BaseLLMClient:
 
         else:
             # 3. Fallback to a universal tokenizer
-            logger.warn(
+            logger.warning(
                 f"[WARN] Model '{model_name}' not recognized. Falling back to cl100k_base tokenizer."
             )
             return tiktoken.get_encoding("cl100k_base")
 
     def count_tokens(self, messages, model="openai/gpt-4"):
-        # encoding = tiktoken.encoding_for_model(model)
-        # total = 0
-        # for msg in messages:
-        #     total += 4
-        #     for key, value in msg.items():
-        #         total += len(encoding.encode(value))
-        # total += 2
-        # return total
+        """
+        Count the number of tokens in the given messages for pricing/limits.
+        """
+        logger.debug(f"Counting tokens for model={model}")
         tokenizer = self.get_tokenizer("o4-mini")
         total = 0
         for msg in messages:
             total += len(tokenizer.encode("Your text goes here"))
+        logger.debug(f"Token count: {total}")
         return total
 
     def get_price(self, model, prompt_tokens, completion_tokens):
+        """
+        Calculate the price of a request given token usage.
+        """
+        logger.debug(f"Calculating price for model={model} prompt_tokens={prompt_tokens} completion_tokens={completion_tokens}")
         if model in self.price:
             return (
                 prompt_tokens / 1000 * float(self.price[model]["prompt_tokens"])
@@ -557,14 +638,21 @@ class BaseLLMClient:
                 completion_tokens / 1000 * float(self.price[model]["completion_tokens"])
             )
         else:
+            logger.warning(f"Model {model} not found in price dict, using default pricing.")
             return (prompt_tokens / 1000 * 0.03) + (completion_tokens / 1000 * 0.03)
 
     def get_key(self, env_var: str):
+        """
+        Get an API key from environment variable, raise error if missing.
+        """
+        logger.debug(f"Fetching key from environment variable: {env_var}")
         api_key = os.getenv(env_var)
         if api_key is None:
+            logger.error(f"Missing required environment variable: {env_var}")
             raise EnvironmentError(f"Missing required environment variable: {env_var}")
         else:
             self.api_key = api_key
+            logger.debug(f"API key set for {env_var}")
 
 
 class OpenAIClient(BaseLLMClient):
@@ -1092,7 +1180,13 @@ class GithubClient(BaseLLMClient):
         # response = self.client.chat.completions.create(**params)
         response = requests.post(
             self.get_endpoint(), headers=self.headers, json=params
-        ).json()
+        )
+
+        if response.status_code == 200 :
+            return response.json()
+        else:
+            print(f"Response Code: {response.status_code}, {response.text=}")
+            return None
         logger.debug(f"{response=}")
 
         return response
@@ -1127,6 +1221,9 @@ class GithubClient(BaseLLMClient):
 
 
 def get_prompt(filename):
+    """
+    Utility to read a prompt file and return its contents.
+    """
     logger.debug(f"Prompt file is {filename}")
     if os.path.exists(filename):
         with open(filename, "r") as f:
@@ -1134,6 +1231,7 @@ def get_prompt(filename):
             logger.debug(f"Prompt {system_prompt}")
         return system_prompt
     else:
+        logger.warning(f"Prompt file {filename} does not exist.")
         return ""
 
 
@@ -1154,18 +1252,23 @@ class MyHelpFormatter(RichHelpFormatter):
 
 epilog = Markdown(
     dedent("""
-### Example usage:
-  * `gpt "What's the capital of France?"`
-  * `gpt "Refactor this function" --model openai/gpt-4`
-  * `gpt --history`
-  * `gpt --total`
-  * `gpt --list-models`
-  * `gpt "Give me a plan for a YouTube channel" --use-prompt`
-""")
+    ### Example usage:
+      * `gpt "What's the capital of France?"`
+      * `gpt "Refactor this function" --model openai/gpt-4`
+      * `gpt --history`
+      * `gpt --total`
+      * `gpt --list-models`
+      * `gpt "Give me a plan for a YouTube channel" --use-prompt`
+    """)
 )
 
 
 def main():
+    """
+    Main entrypoint for the CLI application.
+    Parses arguments, dispatches commands, and manages logging.
+    """
+    logger.info("Starting zapgpt CLI main entry point")
     ## Add zapgpt logo, this will not go to output file.
     console.print(
         """
@@ -1390,8 +1493,11 @@ def main():
         # print("🧠 Querying model...\n")
         try:
             response = llm_client.send_request(args.query)
-            logger.debug(f"Response: {response=}")
-            llm_client.handle_response(response)
+            if response:
+                logger.debug(f"Response: {response=}")
+                llm_client.handle_response(response)
+            else:
+                print ("Bad Response")
         except Exception as e:
             logger.exception(f"❌ Error while querying: {e}")
     else:
