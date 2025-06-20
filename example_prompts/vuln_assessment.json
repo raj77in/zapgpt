@@ -1,0 +1,5 @@
+{
+  "model": "openai/gpt-4",
+  "system_prompt": "Create a comprehensive vulnerability assessment report based on the findings from a recent penetration test.",
+  "assistant_input": "The assessment identified three high-severity issues: unauthenticated RCE, outdated Apache server, and misconfigured S3 buckets..."
+}

@@ -1,176 +1,109 @@
 #!/usr/bin/python3
-######################################################################
-#
-#      FileName: zapgpt
-#
-#
-#        Author: Amit Agarwal
-#   Description:
-#       Version: 1.0
-#       Created: 20250506 22:17:21
-#      Revision: none
-#        Author: Amit Agarwal (aka)
-######################################################################
+"""
+GPT CLI Tracker (zapgpt)
+-----------------------
+Author: Amit Agarwal (aka)
+Created: 2025-05-06
+Updated: 2025-06-20
 
-import json
-import logging
-import os
-import re
-import sqlite3
-import sys
-import time
-from argparse import ArgumentParser, ArgumentTypeError
-from datetime import datetime
-from pathlib import Path
-from textwrap import dedent
-from typing import Dict
+A command-line tool for interacting with various LLM providers (OpenAI, Anthropic, Mistral, etc.), tracking usage and costs, and supporting prompt management for security and productivity tasks.
 
-import requests
-import tiktoken
-from openai import OpenAI
-from pygments import highlight
-from pygments.formatters import TerminalFormatter
-from pygments.lexers import get_lexer_by_name
-from rich.console import Console
-from rich.logging import RichHandler
-from rich.markdown import Markdown
-from rich.table import Table
-from rich_argparse import RichHelpFormatter
-from tabulate import tabulate
+Features:
+- Query multiple LLMs (OpenAI, Anthropic, Mistral, etc.) from the command line.
+- Track usage and cost in a local SQLite database.
+- Prompt management and selection.
+- Rich CLI output and logging.
 
-# Setup logging using rich handler for pretty output.
+Usage:
+    python zapgpt.py "Your prompt here"
+    python zapgpt.py --help
+
+Dependencies:
+    See requirements.txt
+"""
+
+# ===============================
+# Standard Library Imports
+# ===============================
+import json  # For config and API responses
+import logging  # For logging actions and errors
+import os  # For environment variables and file paths
+import re  # For regex operations
+import sqlite3  # For usage tracking
+import sys  # For system exit and arguments
+import time  # For time calculations
+from argparse import ArgumentParser, ArgumentTypeError  # For CLI parsing
+from datetime import datetime  # For timestamps
+from pathlib import Path  # For path manipulations
+from textwrap import dedent  # For help/epilog formatting
+from typing import Dict  # For type hints
+
+# ===============================
+# Third-Party Imports
+# ===============================
+import requests  # For HTTP requests to APIs
+import tiktoken  # For token counting
+from openai import OpenAI  # OpenAI API client
+from pygments import highlight  # For syntax highlighting
+from pygments.formatters import TerminalFormatter  # For terminal color formatting
+from pygments.lexers import get_lexer_by_name  # For syntax highlighting
+from rich.console import Console  # For rich terminal output
+from rich.logging import RichHandler  # For rich logging output
+from rich.markdown import Markdown  # For markdown rendering
+from rich.table import Table  # For pretty tables
+from rich_argparse import RichHelpFormatter  # For rich CLI help
+from tabulate import tabulate  # For table formatting
+
+# ===============================
+# Logging Setup
+# ===============================
+# Use RichHandler for pretty, colorized terminal logs.
 console = Console()
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.INFO,  # Change to DEBUG for more verbosity
     handlers=[RichHandler(rich_tracebacks=True)],
     format="%(message)s",
 )
 logger = logging.getLogger("llm")
 
+# ===============================
+# Script Configuration
+# ===============================
 current_script_path = str(Path(__file__).resolve().parent)
 DB_FILE = os.path.expanduser(current_script_path + "/gpt_usage.db")
 
-model_prompts = {
-    "red_team": {
-        "model": "openai/gpt-4-turbo",
-        "system_prompt": "You are a penetration tester in a red team. Use your knowledge of exploits and attack vectors to craft effective PoC exploits for services.",
-        "assistant_input": "Sure, here's a Python PoC using `socket` to exploit the buffer overflow in the vulnerable service...",
-    },
-    "reverse_eng": {
-        "model": "anthropic/claude-3-opus",
-        "system_prompt": "Analyze the binary code and provide insights into potential vulnerabilities or weaknesses.",
-        "assistant_input": "After disassembling the binary, I noticed a classic stack buffer overflow in the `auth()` function due to unchecked `strcpy` usage...",
-    },
-    "payload_creation": {
-        "model": "mistralai/mixtral-8x7b-instruct",
-        "system_prompt": "Create a payload for penetration testing that targets a specific system vulnerability.",
-        "assistant_input": "Here’s a reverse shell payload crafted with `msfvenom` targeting Windows x64 over HTTPS...",
-    },
-    "cyber_awareness": {
-        "model": "anthropic/claude-3-sonnet",
-        "system_prompt": "Write a professional post on defending against ransomware attacks in corporate environments.",
-        "assistant_input": "Ransomware defense starts with strong endpoint detection, frequent offline backups, and phishing-resistant email filtering.",
-    },
-    "phishing_campaign": {
-        "model": "openai/gpt-3.5-turbo",
-        "system_prompt": "Assist in setting up a phishing campaign, including email crafting, social engineering tactics, and payload deployment.",
-        "assistant_input": "Crafted a spoofed Outlook login page and an email that leverages urgency to trick the user into clicking...",
-    },
-    "vuln_assessment": {
-        "model": "openai/gpt-4",
-        "system_prompt": "Create a comprehensive vulnerability assessment report based on the findings from a recent penetration test.",
-        "assistant_input": "The assessment identified three high-severity issues: unauthenticated RCE, outdated Apache server, and misconfigured S3 buckets...",
-    },
-    "exploit_dev": {
-        "model": "anthropic/claude-3-opus",
-        "system_prompt": "Provide guidance on developing an exploit for a discovered vulnerability, including code snippets and attack vectors.",
-        "assistant_input": "You can exploit this heap overflow by corrupting adjacent chunks and redirecting execution flow to a ROP chain...",
-    },
-    "soc_reporting": {
-        "model": "openai/gpt-3.5-turbo",
-        "system_prompt": "Write a detailed report for a Security Operations Center (SOC) regarding the latest security incident.",
-        "assistant_input": "At 03:21 UTC, our EDR detected anomalous PowerShell execution tied to lateral movement from host `SRV-DC-02`...",
-    },
-    "red_team_planning": {
-        "model": "mistralai/mixtral-8x7b-instruct",
-        "system_prompt": "Assist in planning a red team engagement, including attack vectors, reconnaissance, and post-exploitation strategies.",
-        "assistant_input": "Initial recon will include passive OSINT on the target org’s domain. The engagement will move into phishing, privilege escalation, and persistence.",
-    },
-    "incident_response": {
-        "model": "openai/gpt-4-turbo",
-        "system_prompt": "Create an incident response playbook for handling a security breach, including steps for containment, eradication, and recovery.",
-        "assistant_input": "Step 1: Isolate impacted endpoints. Step 2: Identify and terminate malicious processes. Step 3: Deploy remediation scripts and begin forensic analysis...",
-    },
-    "malware_analysis": {
-        "model": "anthropic/claude-3-opus",
-        "system_prompt": "Analyze a given piece of malware and describe its behavior, including potential impacts and mitigation strategies.",
-        "assistant_input": "This malware runs as a background process, periodically checks for a C2 server, and can exfiltrate browser credentials via HTTP POST...",
-    },
-    "threat_intel": {
-        "model": "openai/gpt-4",
-        "system_prompt": "Write a detailed threat intelligence report on the latest trends in cyber threats, including recommendations for defense.",
-        "assistant_input": "Q1 2025 shows a surge in AI-assisted phishing and ransomware-as-a-service offerings. Zero-trust and MFA adoption are critical responses...",
-    },
-    "social_attack_sim": {
-        "model": "anthropic/claude-3-sonnet",
-        "system_prompt": "Simulate an attack on social media platforms, including crafting fake posts and exploiting user vulnerabilities.",
-        "assistant_input": "Posted a fake giveaway with a link to a credential harvester mimicking a known influencer's site. Engagement rate is high within the first hour...",
-    },
-    "system_hardening": {
-        "model": "openai/gpt-4-turbo",
-        "system_prompt": "Provide guidance on hardening a system, including steps for securing the operating system, applications, and network.",
-        "assistant_input": "Disable unused services, enable SELinux/AppArmor, enforce password policies, and segment your network using VLANs...",
-    },
-    "security_policy": {
-        "model": "mistralai/mixtral-8x7b-instruct",
-        "system_prompt": "Assist in creating a security policy for a company, covering areas such as access control, data protection, and incident response.",
-        "assistant_input": "Policy recommends RBAC with MFA for all privileged access, encrypted data at rest and transit, and quarterly incident response drills...",
-    },
-    "blog_cyber_trends": {
-        "model": "openai/gpt-4",
-        "system_prompt": "Write a blog post about the latest trends in cybersecurity, focusing on emerging threats and mitigation techniques.",
-        "assistant_input": "Cybersecurity in 2025 is seeing an AI-driven arms race. Defenders must embrace threat intelligence automation to stay ahead...",
-    },
-    "social_media_post": {
-        "model": "openai/gpt-3.5-turbo",
-        "system_prompt": "Write a short, engaging social media post on phishing prevention for a general audience.",
-        "assistant_input": "⚠️ Don’t get hooked! Always double-check sender emails and links. Hover before you click. #PhishingAwareness #CyberSafe",
-    },
-    "code_review": {
-        "model": "anthropic/claude-3-opus",
-        "system_prompt": "Review the provided code snippet from a security perspective and identify potential vulnerabilities.",
-        "assistant_input": "Line 24 uses `eval()` on untrusted input, which could lead to code injection. Consider using `ast.literal_eval` or a safer parsing method...",
-    },
-    "security_training": {
-        "model": "openai/gpt-4-turbo",
-        "system_prompt": "Create a training module for employees on how to recognize phishing attempts and other common cyber threats.",
-        "assistant_input": "Module 1: Spotting phishing signs — mismatched URLs, urgent tone, strange attachments. Interactive quiz follows each section.",
-    },
-    "security_scripts": {
-        "model": "mistralai/mixtral-8x7b-instruct",
-        "system_prompt": "Write a Python script to automate security tasks, such as vulnerability scanning or incident response actions.",
-        "assistant_input": "Here's a Python script using `nmap` and `subprocess` to scan the internal network and log open ports into a CSV file...",
-    },
-    "pentest_summary": {
-        "model": "openai/gpt-3.5-turbo",
-        "system_prompt": "Summarize the findings of a recent penetration test, highlighting the most critical vulnerabilities and recommendations.",
-        "assistant_input": "3 critical vulns were found: Unrestricted file upload, hardcoded credentials, and exposed management interfaces...",
-    },
-    "sql_injection": {
-        "model": "openai/gpt-4",
-        "system_prompt": "Create a guide for exploiting SQL injection vulnerabilities, including techniques for bypassing filters and extracting data.",
-        "assistant_input": "Start with basic `OR '1'='1` injection. Use `UNION SELECT` to extract DB names. Bypass WAFs using inline comments or encodings...",
-    },
-}
+import glob
 
+# Dynamically load all JSON prompt files from the prompts directory
+PROMPTS_DIR = os.path.join(current_script_path, "prompts")
+prompt_jsons = {}
+for prompt_file in glob.glob(os.path.join(PROMPTS_DIR, "*.json")):
+    name = os.path.splitext(os.path.basename(prompt_file))[0]
+    with open(prompt_file, "r", encoding="utf-8") as f:
+        try:
+            prompt_jsons[name] = json.load(f)
+        except Exception as e:
+            logger.error(f"Failed to load prompt file {prompt_file}: {e}")
 
 def pretty(x):
-    """Format a float to 10 decimal places, removing trailing zeros."""
+    """
+    Format a float to 10 decimal places, removing trailing zeros.
+    Args:
+        x (float): The number to format.
+    Returns:
+        str: The formatted number as a string.
+    """
     return f"{x:.10f}".rstrip("0").rstrip(".")
 
 
 def color_cost(value):
-    """Return a color-coded string for cost values."""
+    """
+    Return a color-coded string for cost values.
+    Args:
+        value (float or str): The cost value to color.
+    Returns:
+        str: The color-coded string representation of the cost.
+    """
     try:
         num = float(value)
         if num == 0:
@@ -183,7 +116,13 @@ def color_cost(value):
 
 
 def fmt_colored(value):
-    """Color the value green if zero, cyan otherwise."""
+    """
+    Color the value green if zero, cyan otherwise.
+    Args:
+        value (float or str): The value to color.
+    Returns:
+        str: The color-coded string representation of the value.
+    """
     num = float(value)
     color = "green" if num == 0 else "cyan"
     return f"[{color}]{num:.10f}[/{color}]"
@@ -192,6 +131,10 @@ def fmt_colored(value):
 def get_filenames_without_extension(folder_path):
     """
     List all filenames in a folder without the .txt extension.
+    Args:
+        folder_path (str): The path to the folder to scan.
+    Returns:
+        list: Filenames without the .txt extension.
     """
     logger.debug(f"Scanning folder for .txt files: {folder_path}")
     filenames = []
@@ -222,6 +165,10 @@ def match_abbreviation(options: dict | list[str]):
     """
     Returns a function for argparse `type=` that matches partial input to full option key.
     Accepts either a list of strings or dict keys.
+    Args:
+        options (dict or list): The valid options to match against.
+    Returns:
+        function: A function that matches user input to a valid option.
     """
 
     # Convert to list if a dict is passed
@@ -229,6 +176,16 @@ def match_abbreviation(options: dict | list[str]):
     valid_keys = list(options.keys()) if isinstance(options, dict) else list(options)
 
     def _match(value: str) -> str:
+        """
+        Inner matcher function for match_abbreviation.
+        Belongs to: match_abbreviation (top-level function).
+        Args:
+            value (str): The user input to match.
+        Returns:
+            str: The matched option.
+        Raises:
+            ArgumentTypeError: If input is ambiguous or invalid.
+        """
         logger.debug(f"Trying to match user input '{value}'")
         value = value.strip().lower()
         matches = [key for key in valid_keys if key.lower().startswith(value)]
@@ -264,6 +221,17 @@ class BaseLLMClient:
         output: str = "",
         file: str = None,
     ):
+        """
+        Initialize a BaseLLMClient instance.
+        Belongs to: BaseLLMClient class.
+        Args:
+            model (str): The model name.
+            system_prompt (str, optional): The system prompt to use.
+            max_tokens (int, optional): Maximum tokens for responses.
+            temperature (float, optional): Sampling temperature.
+            output (str, optional): Output file path.
+            file (str, optional): Input file path.
+        """
         logger.debug(f"Initializing BaseLLMClient with model={model}, output={output}, file={file}")
         self.model = model
         self.system_prompt = system_prompt
@@ -285,6 +253,7 @@ class BaseLLMClient:
     def init_db(self):
         """
         Create the usage database if it does not exist.
+        Belongs to: BaseLLMClient class.
         """
         logger.info(f"Initializing database at {DB_FILE}")
         conn = sqlite3.connect(DB_FILE)
@@ -334,7 +303,12 @@ class BaseLLMClient:
 
     def create_prompt(self, query: str):
         """
-        Build the prompt messages, optionally including a system prompt and file content.
+        Build the prompt messages for the LLM request, optionally including a system prompt and file content.
+        Belongs to: BaseLLMClient class.
+        Args:
+            query (str): The user query or prompt.
+        Returns:
+            list: List of messages formatted for the LLM API.
         """
         logger.debug(f"Creating prompt for query: {query}")
         messages = []
@@ -360,21 +334,38 @@ class BaseLLMClient:
 
     def build_payload(self, prompt: str) -> Dict:
         """
-        Should be implemented by subclasses to build the payload for the API request.
+        Build the payload for the API request. Should be implemented by subclasses.
+        Belongs to: BaseLLMClient class.
+        Args:
+            prompt (str): The prompt or query for the API.
+        Returns:
+            dict: The payload for the API request.
+        Raises:
+            NotImplementedError: If not implemented in subclass.
         """
         logger.debug("build_payload called on BaseLLMClient (should be overridden)")
         raise NotImplementedError
 
     def get_headers(self) -> Dict:
         """
-        Should be implemented by subclasses to return HTTP headers for API requests.
+        Return HTTP headers for API requests. Should be implemented by subclasses.
+        Belongs to: BaseLLMClient class.
+        Returns:
+            dict: HTTP headers for the API request.
+        Raises:
+            NotImplementedError: If not implemented in subclass.
         """
         logger.debug("get_headers called on BaseLLMClient (should be overridden)")
         raise NotImplementedError
 
     def get_endpoint(self) -> str:
         """
-        Should be implemented by subclasses to return the API endpoint URL.
+        Return the API endpoint URL. Should be implemented by subclasses.
+        Belongs to: BaseLLMClient class.
+        Returns:
+            str: The API endpoint URL.
+        Raises:
+            NotImplementedError: If not implemented in subclass.
         """
         logger.debug("get_endpoint called on BaseLLMClient (should be overridden)")
         raise NotImplementedError
@@ -382,6 +373,11 @@ class BaseLLMClient:
     def send_request(self, prompt: str) -> str:
         """
         Send a chat completion request to the API and return the response.
+        Belongs to: BaseLLMClient class.
+        Args:
+            prompt (str): The user prompt or query.
+        Returns:
+            str: The response from the LLM API.
         """
         logger.info(f"Sending request to LLM for model={self.model}")
         self.query = prompt
@@ -406,12 +402,14 @@ class BaseLLMClient:
         logger.debug(f"{response=}")
         return response
 
-    # def handle_response(self, response_json: Dict) -> str:
-    #     raise NotImplementedError
-
     def handle_response(self, response: str) -> str:
         """
         Print and log the LLM response, cost, and usage info.
+        Belongs to: BaseLLMClient class.
+        Args:
+            response (str): The response object from the LLM API.
+        Returns:
+            str: The reply from the LLM API.
         """
         logger.debug("Handling LLM response")
         logger.debug(f"{response.model_dump()}")
@@ -448,6 +446,10 @@ class BaseLLMClient:
     def add_to_history(self, role: str, content: str):
         """
         Add a chat message to the in-memory history.
+        Belongs to: BaseLLMClient class.
+        Args:
+            role (str): The role of the message sender (e.g., 'user', 'assistant').
+            content (str): The content of the message.
         """
         logger.debug(f"Adding to history: {role=}, content length={len(content)}")
         self.chat_history.append({"role": role, "content": content})
@@ -455,6 +457,12 @@ class BaseLLMClient:
     def highlight_code(self, code: str, lang: str = "python") -> str:
         """
         Color syntax highlight a code block for terminal output.
+        Belongs to: BaseLLMClient class.
+        Args:
+            code (str): The code block to highlight.
+            lang (str, optional): The programming language. Defaults to 'python'.
+        Returns:
+            str: The highlighted code as a string for terminal output.
         """
         logger.debug(f"Highlighting code output for lang={lang}")
         lexer = get_lexer_by_name(lang, stripall=True)
@@ -465,6 +473,7 @@ class BaseLLMClient:
     def show_history():
         """
         Print past model usage history from the database.
+        Belongs to: BaseLLMClient class (staticmethod).
         """
         logger.info("Displaying model usage history from the database")
         conn = sqlite3.connect(DB_FILE)
@@ -483,6 +492,7 @@ class BaseLLMClient:
     def show_total_cost():
         """
         Print the total cost from all model usage.
+        Belongs to: BaseLLMClient class (staticmethod).
         """
         logger.info("Fetching and displaying total cost from DB")
         conn = sqlite3.connect(DB_FILE)
@@ -496,6 +506,12 @@ class BaseLLMClient:
     def list_available_models(self, batch=False, filter=None):
         """
         List available models from the provider, optionally filtering.
+        Belongs to: BaseLLMClient class.
+        Args:
+            batch (bool, optional): If True, return raw model data. Defaults to False.
+            filter (str, optional): Filter string for model names. Defaults to None.
+        Returns:
+            list or None: List of models if batch is True, otherwise prints a table.
         """
         logger.info("Fetching available model list")
         rich_table = Table(title="Model List")
@@ -540,6 +556,10 @@ class BaseLLMClient:
     def print_model_pricing_table(self, pricing_data, filter=None):
         """
         Print a table of model pricing, optionally filtered.
+        Belongs to: BaseLLMClient class.
+        Args:
+            pricing_data (dict): Dictionary with model pricing information.
+            filter (str, optional): Filter string for model names. Defaults to None.
         """
         logger.info("Printing model pricing table")
         rich_table = Table(title="Model Usage Costs")
@@ -581,6 +601,11 @@ class BaseLLMClient:
         """
         Return an appropriate tokenizer encoding for the given model.
         Uses heuristics if the model is not recognized by tiktoken.
+        Belongs to: BaseLLMClient class.
+        Args:
+            model_name (str): The model name to get the tokenizer for.
+        Returns:
+            tiktoken.Encoding: The tokenizer encoding object.
         """
         logger.debug(f"Getting tokenizer for model_name={model_name}")
         try:
@@ -617,6 +642,12 @@ class BaseLLMClient:
     def count_tokens(self, messages, model="openai/gpt-4"):
         """
         Count the number of tokens in the given messages for pricing/limits.
+        Belongs to: BaseLLMClient class.
+        Args:
+            messages (list): List of message dicts to count tokens for.
+            model (str, optional): Model name for tokenizer. Defaults to "openai/gpt-4".
+        Returns:
+            int: Number of tokens in the messages.
         """
         logger.debug(f"Counting tokens for model={model}")
         tokenizer = self.get_tokenizer("o4-mini")
@@ -629,6 +660,13 @@ class BaseLLMClient:
     def get_price(self, model, prompt_tokens, completion_tokens):
         """
         Calculate the price of a request given token usage.
+        Belongs to: BaseLLMClient class.
+        Args:
+            model (str): The model name.
+            prompt_tokens (int): Number of prompt tokens used.
+            completion_tokens (int): Number of completion tokens used.
+        Returns:
+            float: The calculated price for the request.
         """
         logger.debug(f"Calculating price for model={model} prompt_tokens={prompt_tokens} completion_tokens={completion_tokens}")
         if model in self.price:
@@ -867,6 +905,14 @@ class OpenAIClient(BaseLLMClient):
         }
 
     def build_payload(self, prompt: str) -> Dict:
+        """
+        Build the payload for the OpenAI API request.
+        Belongs to: OpenAIClient class.
+        Args:
+            prompt (str): The user prompt or query.
+        Returns:
+            dict: The payload for the OpenAI API request.
+        """
         messages = self.create_prompt(prompt)
         return {
             "model": self.model,
@@ -876,11 +922,20 @@ class OpenAIClient(BaseLLMClient):
         }
 
     def get_endpoint(self) -> str:
+        """
+        Return the OpenAI chat completions API endpoint URL.
+        Belongs to: OpenAIClient class.
+        Returns:
+            str: The OpenAI API endpoint URL.
+        """
         return "https://api.openai.com/v1/chat/completions"
 
     def get_usage(self, days=10):
         """
-        Use OpenAI to get usage
+        Retrieve and display usage data from OpenAI for the past N days.
+        Belongs to: OpenAIClient class.
+        Args:
+            days (int, optional): Number of days to fetch usage for. Defaults to 10.
         """
         if (admin_key := os.getenv("OPENAI_ADMIN_KEY")) is None:
             raise EnvironmentError(
@@ -933,10 +988,22 @@ class OpenAIClient(BaseLLMClient):
         print(f"\nTotal Cost: {a:.8f}")
 
     def print_model_pricing_table(self, filter=None):
+        """
+        Print a table of model pricing for OpenAI models, optionally filtered.
+        Belongs to: OpenAIClient class.
+        Args:
+            filter (str, optional): Filter string for model names. Defaults to None.
+        """
         super().print_model_pricing_table(self.price, filter=filter)
         print("Note: This could be incorrect as this is data provided with script")
 
     def generate_image(self, prompt):
+        """
+        Generate an image using the OpenAI image generation API.
+        Belongs to: OpenAIClient class.
+        Args:
+            prompt (str): The image generation prompt.
+        """
         response = self.client.images.generate(
             model=self.model,
             prompt=prompt,
@@ -956,6 +1023,12 @@ class OpenAIClient(BaseLLMClient):
 
 class OpenRouterClient(BaseLLMClient):
     def get_endpoint(self) -> str:
+        """
+        Return the OpenRouter API endpoint URL.
+        Belongs to: OpenRouterClient class.
+        Returns:
+            str: The OpenRouter API endpoint URL.
+        """
         return "https://openrouter.ai/api/v1/"
 
     def __init__(
@@ -969,6 +1042,18 @@ class OpenRouterClient(BaseLLMClient):
         max_tokens: int = 4096,
         **kwargs,
     ):
+        """
+        Initialize the OpenRouterClient instance.
+        Belongs to: OpenRouterClient class.
+        Args:
+            model (str, optional): The model to use. Defaults to "openai/gpt-4o-mini".
+            api_key (str, optional): The API key to use. Defaults to None.
+            file (str, optional): The file to use. Defaults to None.
+            temperature (int, optional): The temperature to use. Defaults to 0.7.
+            system_prompt (str, optional): The system prompt to use. Defaults to None.
+            output (str, optional): The output to use. Defaults to "".
+            max_tokens (int, optional): The maximum number of tokens to use. Defaults to 4096.
+        """
         super().__init__(
             model=model,
             system_prompt=system_prompt,
@@ -996,6 +1081,12 @@ class OpenRouterClient(BaseLLMClient):
             }
 
     def get_usage(self, days=10):
+        """
+        Retrieve and display usage data from OpenRouter for the past N days.
+        Belongs to: OpenRouterClient class.
+        Args:
+            days (int, optional): Number of days to fetch usage for. Defaults to 10.
+        """
         url = f"{self.get_endpoint()}credits"
         r = requests.get(url, headers={"Authorization": f"Bearer {self.api_key}"})
         d = r.json()["data"]
@@ -1003,9 +1094,23 @@ class OpenRouterClient(BaseLLMClient):
         print(f"Total Usage: {d['total_usage']:.6f}")
 
     def print_model_pricing_table(self, filter=None):
+        """
+        Print a table of model pricing for OpenRouter models, optionally filtered.
+        Belongs to: OpenRouterClient class.
+        Args:
+            filter (str, optional): Filter string for model names. Defaults to None.
+        """
         super().print_model_pricing_table(self.price, filter=filter)
 
     def send_request(self, prompt: str) -> str:
+        """
+        Send a chat completion request to the OpenRouter API and return the response.
+        Belongs to: OpenRouterClient class.
+        Args:
+            prompt (str): The user prompt or query.
+        Returns:
+            str: The response from the OpenRouter API.
+        """
         self.query = prompt
         logger.debug(f"User Prompt is set to {prompt}")
         prompt = self.create_prompt(prompt)
@@ -1064,6 +1169,12 @@ class ReplicateClient(BaseLLMClient):
 
 class GithubClient(BaseLLMClient):
     def get_endpoint(self) -> str:
+        """
+        Return the GitHub AI inference API endpoint URL.
+        Belongs to: GithubClient class.
+        Returns:
+            str: The GitHub AI API endpoint URL.
+        """
         return "https://models.github.ai/inference/chat/completions"
 
     def __init__(
@@ -1071,12 +1182,25 @@ class GithubClient(BaseLLMClient):
         model: str = "openai/gpt-4.1",
         api_key: str = None,
         file: str = None,
-        temperature: int = 0.7,
+        temperature: float = 0.7,
         system_prompt: str = None,
         output: str = "",
         max_tokens: int = 4096,
         **kwargs,
     ):
+        """
+        Initialize a GithubClient instance.
+        Belongs to: GithubClient class.
+        Args:
+            model (str, optional): The model to use. Defaults to "openai/gpt-4.1".
+            api_key (str, optional): The API key to use. Defaults to None.
+            file (str, optional): The file to use. Defaults to None.
+            temperature (float, optional): The temperature to use. Defaults to 0.7.
+            system_prompt (str, optional): The system prompt to use. Defaults to None.
+            output (str, optional): The output file to use. Defaults to "".
+            max_tokens (int, optional): The maximum number of tokens to use. Defaults to 4096.
+            **kwargs: Additional keyword arguments.
+        """
         super().__init__(
             model=model,
             system_prompt=system_prompt,
@@ -1110,6 +1234,12 @@ class GithubClient(BaseLLMClient):
             }
 
     def get_usage(self, days=10):
+        """
+        Retrieve and display usage data from GitHub AI for the past N days.
+        Belongs to: GithubClient class.
+        Args:
+            days (int, optional): Number of days to fetch usage for. Defaults to 10.
+        """
         url = f"{self.get_endpoint()}credits"
         r = requests.get(url, headers={"Authorization": f"Bearer {self.api_key}"})
         d = r.json()["data"]
@@ -1117,9 +1247,24 @@ class GithubClient(BaseLLMClient):
         print(f"Total Usage: {d['total_usage']:.6f}")
 
     def print_model_pricing_table(self, filter=None):
+        """
+        Print a table of model pricing for GitHub AI models, optionally filtered.
+        Belongs to: GithubClient class.
+        Args:
+            filter (str, optional): Filter string for model names. Defaults to None.
+        """
         super().print_model_pricing_table(self.price, filter=filter)
 
     def list_available_models(self, batch=False, filter=None):
+        """
+        List available models from GitHub AI, optionally filtering.
+        Belongs to: GithubClient class.
+        Args:
+            batch (bool, optional): If True, return raw model data. Defaults to False.
+            filter (str, optional): Filter string for model names. Defaults to None.
+        Returns:
+            list or None: List of models if batch is True, otherwise prints a table.
+        """
         models = requests.get(
             "https://models.github.ai/catalog/models", headers=self.headers
         ).json()
@@ -1269,7 +1414,8 @@ def main():
     Parses arguments, dispatches commands, and manages logging.
     """
     logger.info("Starting zapgpt CLI main entry point")
-    ## Add zapgpt logo, this will not go to output file.
+
+    # Print zapgpt logo/banner (user-facing, not logged)
     console.print(
         """
 ███████╗ █████╗ ██████╗  ██████╗ ██████╗ ████████╗
@@ -1278,19 +1424,32 @@ def main():
  ███╔╝  ██╔══██║██╔═══╝ ██║   ██║██╔═══╝    ██║
 ███████╗██║  ██║██║     ╚██████╔╝██║        ██║
 ╚══════╝╚═╝  ╚═╝╚═╝      ╚═════╝ ╚═╝        ╚═╝
-    """,
+        """,
         style="green",
         markup=False,
     )
-    # print(f"{current_script_path=}")
-    prompt_choices = get_filenames_without_extension(
-        str(current_script_path) + "/prompts"
-    )
-    prompt_choices += model_prompts.keys()
+
+    # Gather available prompt choices from the prompts directory and import glob
+    import glob
+    import json
+
+    # Dynamically load all JSON prompt files from the prompts directory
+    PROMPTS_DIR = os.path.join(current_script_path, "prompts")
+    prompt_jsons = {}
+    for prompt_file in glob.glob(os.path.join(PROMPTS_DIR, "*.json")):
+        name = os.path.splitext(os.path.basename(prompt_file))[0]
+        with open(prompt_file, "r", encoding="utf-8") as f:
+            try:
+                prompt_jsons[name] = json.load(f)
+            except Exception as e:
+                logger.error(f"Failed to load prompt file {prompt_file}: {e}")
+
+    prompt_choices = list(prompt_jsons.keys())
+
+    # Setup command-line argument parsing
     parser = ArgumentParser(
         description="💬 GPT CLI Tracker: Ask OpenAI models, track usage and cost.",
         formatter_class=RichHelpFormatter,
-        # formatter_class=argparse.RawTextHelpFormatter,
         epilog=epilog,
     )
     parser.add_argument("query", nargs="?", type=str, help="Your prompt or question")
@@ -1298,8 +1457,6 @@ def main():
         "-m",
         "--model",
         type=str,
-        # default="openai/gpt-4o-mini",
-        # default="openai/gpt-3.5-turbo",
         default="openai/gpt-4.1",
         help="Specify the model to use (default: openai/gpt-4o-mini). Available models can be listed using --list-models.",
     )
@@ -1354,7 +1511,6 @@ def main():
         required=False,
         nargs="?",
         const=10,
-        # default=10,
         type=int,
         help="Specify days to retrieve usage from OpenAI API.",
     )
@@ -1373,7 +1529,6 @@ def main():
         "-p",
         "--provider",
         choices=provider_map.keys(),
-        # default="openrouter",
         default="github",
         help="Select LLM provider",
     )
@@ -1400,22 +1555,25 @@ def main():
 
     args = parser.parse_args()
 
+    # Handle prompt listing early and exit
     if args.list_prompt:
+        # User-facing output: show all prompt names
         for i in prompt_choices:
-            print (f"* {i}")
+            print(f"* {i}")
+        logger.info("Displayed all available prompts.")
         return
 
-    logger.info(f"{args.model=}, {args.provider=}, {args.max_tokens=}")
+    logger.info(f"Parsed arguments: model={args.model}, provider={args.provider}, max_tokens={args.max_tokens}")
 
     model = args.model
-    logger.debug(f"Arguments {args=}")
+    logger.debug(f"Arguments: {args}")
     try:
         logger.setLevel(getattr(logging, args.log_level.upper()))
         logger.debug(f"Log level is set to {args.log_level.upper()}")
     except Exception as e:
         logger.error(f"Invalid log level: {e}")
-    # print(f"Log Level: {args=}")
 
+    # Check if output file already exists
     if args.output:
         if os.path.exists(args.output):
             logger.critical(f"File already exists {args.output}")
@@ -1423,27 +1581,35 @@ def main():
         else:
             logger.debug(f"Setting output file as {args.output=}")
     system_prompt = None
+    # If --use-prompt is set, load system_prompt and model from the prompt's JSON
     if args.use_prompt:
-        logger.debug(f"Getting file {current_script_path}/prompts/common_base.txt")
-        base_prompt = get_prompt(f"{current_script_path}/prompts/common_base.txt")
-        logger.debug(f"Base prompt: {base_prompt}")
-        sprompt = ""
-        filename = f"{current_script_path}/prompts/{args.use_prompt}.txt"
-        if os.path.exists(filename):
-            sprompt = get_prompt(filename)
+        prompt_name = args.use_prompt
+        if prompt_name in prompt_jsons:
+            # Load the selected prompt
+            prompt_data = prompt_jsons[prompt_name]
+            system_prompt = prompt_data.get("system_prompt", "")
+            
+            # Always prepend common_base if it's not the base prompt itself
+            if prompt_name != 'common_base' and 'common_base' in prompt_jsons:
+                common_base_prompt = prompt_jsons['common_base'].get("system_prompt", "")
+                if common_base_prompt:
+                    system_prompt = f"{common_base_prompt}\n\n{system_prompt}"
+                    logger.info(f"Combined 'common_base' with '{prompt_name}' prompt")
+            
+            model = prompt_data.get("model", args.model)
+            logger.info(f"Loaded prompt '{prompt_name}' with model '{model}'")
         else:
-            sprompt = model_prompts[args.use_prompt]["system_prompt"]
-            model = model_prompts[args.use_prompt]["model"]
-            logger.critical(f"Prompt File {filename} does not exist")
-            logger.debug(f"Using {system_prompt=}")
-            logger.debug(f"Using {model=}")
-            # sys.exit(-1)
-        system_prompt = f"""
-            {base_prompt}
+            logger.error(f"Prompt '{prompt_name}' not found in prompts directory.")
+            system_prompt = ""
+            model = args.model
+    else:
+        model = args.model
 
-            {sprompt}
-        """
-        logger.debug(f"Using system prompt : {system_prompt}")
+    # Prepare assistant_input if present
+    assistant_input = None
+    if args.use_prompt and prompt_name in prompt_jsons:
+        assistant_input = prompt_jsons[prompt_name].get("assistant_input", None)
+
     client_class = provider_map[args.provider]
     llm_client = client_class(
         model=model,
@@ -1490,18 +1656,29 @@ def main():
         return
 
     if args.query:
-        # print("🧠 Querying model...\n")
+        # Compose conversation with optional assistant_input
+        prompt = args.query
+        if assistant_input:
+            # If the LLM client supports chat history, add assistant_input as the first assistant message
+            if hasattr(llm_client, 'chat_history') and isinstance(llm_client.chat_history, list):
+                llm_client.chat_history.clear()
+                llm_client.chat_history.append({"role": "assistant", "content": assistant_input})
+            else:
+                # For clients that use prompt construction, prepend assistant_input to the prompt
+                prompt = f"{assistant_input}\n\n{args.query}"
         try:
-            response = llm_client.send_request(args.query)
+            response = llm_client.send_request(prompt)
             if response:
                 logger.debug(f"Response: {response=}")
                 llm_client.handle_response(response)
             else:
-                print ("Bad Response")
+                print("Bad Response")
         except Exception as e:
             logger.exception(f"❌ Error while querying: {e}")
-    else:
-        parser.print_help()
+        return
+
+    # If no other action, show help
+    parser.print_help()
 
 
 if __name__ == "__main__":

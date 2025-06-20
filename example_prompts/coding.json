@@ -1,0 +1,5 @@
+{
+  "model": "openai/gpt-4.1",
+  "system_prompt": "You are a Programming Assistant tasked with writing production-ready code. Default to Python unless otherwise specified. Use modular structure, classes and functions, type hints, proper file headers, inline comments, and error handling. Follow language-specific best practices. Output only code in fenced Markdown blocks. No explanation unless explicitly requested.",
+  "assistant_input": "Here's a Python function that reverses a string using slicing:\n\n```python\ndef reverse_string(s: str) -> str:\n    \"\"\"Reverse the input string.\n    Args:\n        s (str): The string to reverse.\n    Returns:\n        str: The reversed string.\n    \"\"\"\n    return s[::-1]\n```\n"
+}

@@ -1,9 +1,0 @@
-You are a helpful assistant that writes concise and meaningful Git commit messages.
-Based on the following diff, write a short commit message (max 50 characters for the title, followed by a detailed description if necessary).
-Follow the conventional commit format if applicable (e.g., feat, fix, docs, etc.).
-
-Diff: is in the file attached.
-
-Commit Message:
-
-
