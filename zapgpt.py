@@ -25,6 +25,7 @@ Dependencies:
 # ===============================
 # Standard Library Imports
 # ===============================
+import glob
 import json  # For config and API responses
 import logging  # For logging actions and errors
 import os  # For environment variables and file paths
@@ -72,7 +73,6 @@ logger = logging.getLogger("llm")
 current_script_path = str(Path(__file__).resolve().parent)
 DB_FILE = os.path.expanduser(current_script_path + "/gpt_usage.db")
 
-import glob
 
 # Dynamically load all JSON prompt files from the prompts directory
 PROMPTS_DIR = os.path.join(current_script_path, "prompts")
@@ -84,6 +84,7 @@ for prompt_file in glob.glob(os.path.join(PROMPTS_DIR, "*.json")):
             prompt_jsons[name] = json.load(f)
         except Exception as e:
             logger.error(f"Failed to load prompt file {prompt_file}: {e}")
+
 
 def pretty(x):
     """
@@ -232,7 +233,9 @@ class BaseLLMClient:
             output (str, optional): Output file path.
             file (str, optional): Input file path.
         """
-        logger.debug(f"Initializing BaseLLMClient with model={model}, output={output}, file={file}")
+        logger.debug(
+            f"Initializing BaseLLMClient with model={model}, output={output}, file={file}"
+        )
         self.model = model
         self.system_prompt = system_prompt
         self.max_tokens = max_tokens
@@ -278,7 +281,9 @@ class BaseLLMClient:
         """
         Record a model usage event to the database.
         """
-        logger.info(f"Recording usage for model={model}, provider={provider}, tokens={prompt_tokens + completion_tokens}, cost={cost}")
+        logger.info(
+            f"Recording usage for model={model}, provider={provider}, tokens={prompt_tokens + completion_tokens}, cost={cost}"
+        )
         conn = sqlite3.connect(DB_FILE)
         logger.debug(f"Opened {DB_FILE=}")
         cursor = conn.cursor()
@@ -611,7 +616,9 @@ class BaseLLMClient:
         try:
             return tiktoken.encoding_for_model(model_name)
         except KeyError:
-            logger.warning(f"Model '{model_name}' not found in tiktoken. Using fallback heuristics.")
+            logger.warning(
+                f"Model '{model_name}' not found in tiktoken. Using fallback heuristics."
+            )
 
         # 2. Model-specific heuristics
         model_name_lower = model_name.lower()
@@ -668,7 +675,9 @@ class BaseLLMClient:
         Returns:
             float: The calculated price for the request.
         """
-        logger.debug(f"Calculating price for model={model} prompt_tokens={prompt_tokens} completion_tokens={completion_tokens}")
+        logger.debug(
+            f"Calculating price for model={model} prompt_tokens={prompt_tokens} completion_tokens={completion_tokens}"
+        )
         if model in self.price:
             return (
                 prompt_tokens / 1000 * float(self.price[model]["prompt_tokens"])
@@ -676,7 +685,9 @@ class BaseLLMClient:
                 completion_tokens / 1000 * float(self.price[model]["completion_tokens"])
             )
         else:
-            logger.warning(f"Model {model} not found in price dict, using default pricing.")
+            logger.warning(
+                f"Model {model} not found in price dict, using default pricing."
+            )
             return (prompt_tokens / 1000 * 0.03) + (completion_tokens / 1000 * 0.03)
 
     def get_key(self, env_var: str):
@@ -1323,11 +1334,9 @@ class GithubClient(BaseLLMClient):
         }
         logger.debug(f"Making request with {params=} using requests")
         # response = self.client.chat.completions.create(**params)
-        response = requests.post(
-            self.get_endpoint(), headers=self.headers, json=params
-        )
+        response = requests.post(self.get_endpoint(), headers=self.headers, json=params)
 
-        if response.status_code == 200 :
+        if response.status_code == 200:
             return response.json()
         else:
             print(f"Response Code: {response.status_code}, {response.text=}")
@@ -1396,7 +1405,8 @@ class MyHelpFormatter(RichHelpFormatter):
 
 
 epilog = Markdown(
-    dedent("""
+    dedent(
+        """
     ### Example usage:
       * `gpt "What's the capital of France?"`
       * `gpt "Refactor this function" --model openai/gpt-4`
@@ -1404,7 +1414,8 @@ epilog = Markdown(
       * `gpt --total`
       * `gpt --list-models`
       * `gpt "Give me a plan for a YouTube channel" --use-prompt`
-    """)
+    """
+    )
 )
 
 
@@ -1470,7 +1481,7 @@ def main():
     parser.add_argument(
         "-lsp",
         "--list-prompt",
-        action='store_true',
+        action="store_true",
         help="List all the prompts",
     )
     parser.add_argument(
@@ -1563,7 +1574,9 @@ def main():
         logger.info("Displayed all available prompts.")
         return
 
-    logger.info(f"Parsed arguments: model={args.model}, provider={args.provider}, max_tokens={args.max_tokens}")
+    logger.info(
+        f"Parsed arguments: model={args.model}, provider={args.provider}, max_tokens={args.max_tokens}"
+    )
 
     model = args.model
     logger.debug(f"Arguments: {args}")
@@ -1588,14 +1601,16 @@ def main():
             # Load the selected prompt
             prompt_data = prompt_jsons[prompt_name]
             system_prompt = prompt_data.get("system_prompt", "")
-            
+
             # Always prepend common_base if it's not the base prompt itself
-            if prompt_name != 'common_base' and 'common_base' in prompt_jsons:
-                common_base_prompt = prompt_jsons['common_base'].get("system_prompt", "")
+            if prompt_name != "common_base" and "common_base" in prompt_jsons:
+                common_base_prompt = prompt_jsons["common_base"].get(
+                    "system_prompt", ""
+                )
                 if common_base_prompt:
                     system_prompt = f"{common_base_prompt}\n\n{system_prompt}"
                     logger.info(f"Combined 'common_base' with '{prompt_name}' prompt")
-            
+
             model = prompt_data.get("model", args.model)
             logger.info(f"Loaded prompt '{prompt_name}' with model '{model}'")
         else:
@@ -1660,9 +1675,13 @@ def main():
         prompt = args.query
         if assistant_input:
             # If the LLM client supports chat history, add assistant_input as the first assistant message
-            if hasattr(llm_client, 'chat_history') and isinstance(llm_client.chat_history, list):
+            if hasattr(llm_client, "chat_history") and isinstance(
+                llm_client.chat_history, list
+            ):
                 llm_client.chat_history.clear()
-                llm_client.chat_history.append({"role": "assistant", "content": assistant_input})
+                llm_client.chat_history.append(
+                    {"role": "assistant", "content": assistant_input}
+                )
             else:
                 # For clients that use prompt construction, prepend assistant_input to the prompt
                 prompt = f"{assistant_input}\n\n{args.query}"
