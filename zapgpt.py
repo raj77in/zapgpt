@@ -262,7 +262,18 @@ class BaseLLMClient:
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
         c.execute(
-            """CREATE TABLE IF NOT EXISTS usage (model TEXT, provider TEXT, tokens INTEGER)"""
+              """
+              CREATE TABLE IF NOT EXISTS usage (
+                id INTEGER PRIMARY KEY,
+                timestamp TEXT,
+                model TEXT,
+                prompt_tokens INTEGER,
+                completion_tokens INTEGER,
+                total_tokens INTEGER,
+                cost REAL,
+                query TEXT
+              )
+              """
         )
         conn.commit()
         conn.close()
