@@ -5,4 +5,5 @@ tiktoken==0.9.0
 rich==13.9.4
 pygments==2.17.2
 httpx==0.28.1
-rich-argparse==13.9.4
+rich-argparse>=1.7.1
+importlib_resources>=5.0.0;python_version<"3.9"

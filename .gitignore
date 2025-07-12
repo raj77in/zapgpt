@@ -1,5 +1,24 @@
 gpt_usage.db
 prompts/my*
+
+# Development and testing files
+test_env/
+dev-scripts/
+final_test.py
+test_prompts.py
+build_and_upload.py
+test_*.py
+verify_install.py
+
+# Launch materials (not needed in repository)
+docs/launch-materials/*
+*.md.bak
+LAUNCH_*
+SOCIAL_*
+BLOG_*
+COMMIT_*
+PYPI_*
+UV_*
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

@@ -1,0 +1,153 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zapgpt"
+version = "3.0.0"
+description = "A command-line tool for interacting with various LLM providers"
+readme = "README.md"
+license = {file = "LICENSE"}
+authors = [
+    {name = "Amit Agarwal", email = "amit@example.com"}
+]
+maintainers = [
+    {name = "Amit Agarwal", email = "amit@example.com"}
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Communications :: Chat",
+    "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Terminals",
+    "Topic :: Utilities",
+]
+keywords = [
+    "ai", "llm", "gpt", "openai", "anthropic", "mistral", "cli", "chat", "terminal"
+]
+requires-python = ">=3.8"
+dependencies = [
+    "openai>=1.54.0",
+    "requests>=2.32.3",
+    "tabulate>=0.9.0",
+    "tiktoken>=0.8.0",
+    "rich>=13.9.4",
+    "pygments>=2.18.0",
+    "httpx>=0.28.1",
+    "rich-argparse>=1.7.1",
+    "importlib_resources>=6.4.5;python_version<'3.9'",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/zapgpt"
+Repository = "https://github.com/yourusername/zapgpt"
+Issues = "https://github.com/yourusername/zapgpt/issues"
+Documentation = "https://github.com/yourusername/zapgpt#readme"
+
+[project.scripts]
+zapgpt = "zapgpt.cli:cli"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "pytest-mock>=3.10",
+    "ruff>=0.1.0",
+    "mypy>=1.0",
+    "pre-commit>=3.0",
+]
+test = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "pytest-mock>=3.10",
+]
+
+[tool.setuptools]
+packages = ["zapgpt"]
+
+[tool.setuptools.package-data]
+zapgpt = ["prompts/*.json", "default_pricing.json"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py38"
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+]
+ignore = [
+    "E501",  # line too long, handled by formatter
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false  # Gradually enable this
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q --strict-markers --strict-config"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["zapgpt"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "setup.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == '__main__':",
+    "class .*Protocol\\):",
+    "@abstractmethod",
+]

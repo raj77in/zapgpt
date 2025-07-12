@@ -1,0 +1,27 @@
+include README.md
+include LICENSE
+include requirements.txt
+recursive-include zapgpt/prompts *.json
+include zapgpt/default_pricing.json
+
+# Exclude development and launch materials
+global-exclude __pycache__
+global-exclude *.py[co]
+global-exclude .DS_Store
+exclude docs/launch-materials/*
+exclude COMMIT_MESSAGE.md
+exclude BLOG_POST.md
+exclude SOCIAL_MEDIA_POSTS.md
+exclude PYPI_PUBLISHING_GUIDE.md
+exclude LAUNCH_CHECKLIST.md
+exclude UV_RECOMMENDATION.md
+exclude test_*.py
+exclude final_test.py
+exclude test_prompts.py
+exclude build_and_upload.py
+exclude test_env/
+exclude dev-scripts/
+exclude .github/
+prune docs/launch-materials
+prune test_env
+prune dev-scripts

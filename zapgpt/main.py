@@ -1,25 +1,36 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 """
-GPT CLI Tracker (zapgpt)
------------------------
+ZapGPT - A command-line tool for interacting with various LLM providers
+======================================================================
 Author: Amit Agarwal (aka)
 Created: 2025-05-06
-Updated: 2025-06-20
+Updated: 2025-07-13
+Version: 3.0.0
 
-A command-line tool for interacting with various LLM providers (OpenAI, Anthropic, Mistral, etc.), tracking usage and costs, and supporting prompt management for security and productivity tasks.
+A minimalist CLI tool to chat with LLMs from your terminal. Features include:
+- Support for multiple LLM providers (OpenAI, Anthropic, Mistral, etc.)
+- Usage and cost tracking with local SQLite database
+- User-customizable prompt management system
+- Rich CLI output and logging
+- Configuration stored in ~/.config/zapgpt/
 
-Features:
-- Query multiple LLMs (OpenAI, Anthropic, Mistral, etc.) from the command line.
-- Track usage and cost in a local SQLite database.
-- Prompt management and selection.
-- Rich CLI output and logging.
+Installation:
+    pip install zapgpt
 
 Usage:
-    python zapgpt.py "Your prompt here"
-    python zapgpt.py --help
+    zapgpt "Your question here"
+    zapgpt --use-prompt coding "Refactor this function"
+    zapgpt --list-prompt
+    zapgpt --config
+    zapgpt --show-prompt coding
+
+Configuration:
+    Configuration and prompts are stored in ~/.config/zapgpt/
+    - Prompts: ~/.config/zapgpt/prompts/
+    - Database: ~/.config/zapgpt/gpt_usage.db
 
 Dependencies:
-    See requirements.txt
+    See pyproject.toml or requirements.txt
 """
 
 # ===============================
@@ -56,8 +67,52 @@ from rich_argparse import RichHelpFormatter  # For rich CLI help
 from tabulate import tabulate  # For table formatting
 
 # ===============================
-# Logging Setup
+# Configuration and Setup
 # ===============================
+
+class OutputHandler:
+    """Centralized output handler that respects quiet mode"""
+
+    def __init__(self, quiet_mode=False):
+        self.quiet_mode = quiet_mode
+        self.console = Console(file=sys.stderr if quiet_mode else None)
+
+    def print(self, *args, **kwargs):
+        """Print to stdout (always shown, for data output)"""
+        print(*args, **kwargs)
+
+    def console_print(self, *args, **kwargs):
+        """Styled console output (hidden in quiet mode)"""
+        if not self.quiet_mode:
+            self.console.print(*args, **kwargs)
+
+    def error(self, message, styled_message=None):
+        """Error output (always shown, but styled only if not quiet)"""
+        if self.quiet_mode:
+            print(f"❌ {message}", file=sys.stderr)
+        else:
+            self.console.print(styled_message or f"[red]❌ {message}[/red]")
+
+    def success(self, message, styled_message=None):
+        """Success output (hidden in quiet mode)"""
+        if not self.quiet_mode:
+            self.console.print(styled_message or f"[green]✅ {message}[/green]")
+
+    def info(self, message, styled_message=None):
+        """Info output (hidden in quiet mode)"""
+        if not self.quiet_mode:
+            self.console.print(styled_message or f"[blue]ℹ️ {message}[/blue]")
+
+    def warning(self, message, styled_message=None):
+        """Warning output (shown in quiet mode as plain text)"""
+        if self.quiet_mode:
+            print(f"⚠️ {message}", file=sys.stderr)
+        else:
+            self.console.print(styled_message or f"[yellow]⚠️ {message}[/yellow]")
+
+# Global output handler (will be initialized in main)
+output = None
+
 # Use RichHandler for pretty, colorized terminal logs.
 console = Console()
 logging.basicConfig(
@@ -71,19 +126,209 @@ logger = logging.getLogger("llm")
 # Script Configuration
 # ===============================
 current_script_path = str(Path(__file__).resolve().parent)
-DB_FILE = os.path.expanduser(current_script_path + "/gpt_usage.db")
+# Store database in user config directory
+CONFIG_DIR = os.path.expanduser("~/.config/zapgpt")
+DB_FILE = os.path.join(CONFIG_DIR, "gpt_usage.db")
 
 
-# Dynamically load all JSON prompt files from the prompts directory
-PROMPTS_DIR = os.path.join(current_script_path, "prompts")
+# Configuration directory setup
+USER_PROMPTS_DIR = os.path.join(CONFIG_DIR, "prompts")
+
+def ensure_config_directory():
+    """Ensure the configuration directory exists and copy default files if needed."""
+    if not os.path.exists(CONFIG_DIR):
+        os.makedirs(CONFIG_DIR, exist_ok=True)
+        logger.info(f"Created configuration directory: {CONFIG_DIR}")
+
+    if not os.path.exists(USER_PROMPTS_DIR):
+        os.makedirs(USER_PROMPTS_DIR, exist_ok=True)
+        logger.info(f"Created prompts directory: {USER_PROMPTS_DIR}")
+
+        # Copy default prompts from package to user config
+        copy_default_prompts_to_config()
+
+    # Always check and copy pricing file if it doesn't exist
+    copy_default_pricing_to_config()
+
+def copy_default_prompts_to_config():
+    """Copy default prompt files from package to user config directory."""
+    try:
+        # Try to load default prompts from package
+        from importlib import resources
+        if hasattr(resources, 'files'):
+            # Python 3.9+
+            prompts_pkg = resources.files('zapgpt') / 'prompts'
+            for prompt_file in prompts_pkg.iterdir():
+                if prompt_file.suffix == '.json':
+                    content = prompt_file.read_text(encoding='utf-8')
+                    user_prompt_file = os.path.join(USER_PROMPTS_DIR, prompt_file.name)
+                    with open(user_prompt_file, 'w', encoding='utf-8') as f:
+                        f.write(content)
+                    logger.debug(f"Copied default prompt: {prompt_file.name}")
+        else:
+            # Python 3.8 fallback
+            try:
+                import importlib_resources
+                prompts_pkg = importlib_resources.files('zapgpt') / 'prompts'
+                for prompt_file in prompts_pkg.iterdir():
+                    if prompt_file.suffix == '.json':
+                        content = prompt_file.read_text(encoding='utf-8')
+                        user_prompt_file = os.path.join(USER_PROMPTS_DIR, prompt_file.name)
+                        with open(user_prompt_file, 'w', encoding='utf-8') as f:
+                            f.write(content)
+                        logger.debug(f"Copied default prompt: {prompt_file.name}")
+            except ImportError:
+                logger.warning("Could not copy default prompts: importlib_resources not available")
+                # Fallback: try to copy from development directory
+                dev_prompts_dir = os.path.join(current_script_path, "prompts")
+                if os.path.exists(dev_prompts_dir):
+                    import shutil
+                    for prompt_file in glob.glob(os.path.join(dev_prompts_dir, "*.json")):
+                        shutil.copy2(prompt_file, USER_PROMPTS_DIR)
+                        logger.debug(f"Copied default prompt: {os.path.basename(prompt_file)}")
+
+        logger.info(f"Default prompts copied to {USER_PROMPTS_DIR}")
+        logger.info("You can now customize these prompts or add your own!")
+
+    except Exception as e:
+        logger.error(f"Failed to copy default prompts: {e}")
+        logger.info(f"Please manually create prompt files in {USER_PROMPTS_DIR}")
+
+def copy_default_pricing_to_config():
+    """Copy default pricing file from package to user config directory."""
+    pricing_file = os.path.join(CONFIG_DIR, "pricing.json")
+    if os.path.exists(pricing_file):
+        logger.debug("Pricing file already exists in config directory")
+        return
+
+    try:
+        # Try to load default pricing from package
+        from importlib import resources
+        if hasattr(resources, 'files'):
+            # Python 3.9+
+            try:
+                pricing_pkg = resources.files('zapgpt') / 'default_pricing.json'
+                content = pricing_pkg.read_text(encoding='utf-8')
+                with open(pricing_file, 'w', encoding='utf-8') as f:
+                    f.write(content)
+                logger.debug("Copied default pricing file")
+            except Exception:
+                # Fallback to development directory
+                dev_pricing_file = os.path.join(current_script_path, "default_pricing.json")
+                if os.path.exists(dev_pricing_file):
+                    import shutil
+                    shutil.copy2(dev_pricing_file, pricing_file)
+                    logger.debug("Copied pricing from development directory")
+        else:
+            # Python 3.8 fallback
+            try:
+                import importlib_resources
+                pricing_pkg = importlib_resources.files('zapgpt') / 'default_pricing.json'
+                content = pricing_pkg.read_text(encoding='utf-8')
+                with open(pricing_file, 'w', encoding='utf-8') as f:
+                    f.write(content)
+                logger.debug("Copied default pricing file")
+            except ImportError:
+                # Final fallback to development directory
+                dev_pricing_file = os.path.join(current_script_path, "default_pricing.json")
+                if os.path.exists(dev_pricing_file):
+                    import shutil
+                    shutil.copy2(dev_pricing_file, pricing_file)
+                    logger.debug("Copied pricing from development directory")
+
+        logger.info(f"Default pricing copied to {pricing_file}")
+        logger.info("You can now customize pricing data if needed!")
+
+    except Exception as e:
+        logger.error(f"Failed to copy default pricing: {e}")
+        logger.info(f"Please manually create pricing.json in {CONFIG_DIR}")
+
+def load_pricing_data():
+    """Load pricing data from user config directory."""
+    pricing_file = os.path.join(CONFIG_DIR, "pricing.json")
+
+    if not os.path.exists(pricing_file):
+        logger.warning(f"Pricing file not found at {pricing_file}")
+        return {}
+
+    try:
+        with open(pricing_file, 'r', encoding='utf-8') as f:
+            pricing_data = json.load(f)
+        logger.debug(f"Loaded pricing data from {pricing_file}")
+        return pricing_data
+    except Exception as e:
+        logger.error(f"Failed to load pricing data: {e}")
+        return {}
+
+# Initialize configuration directory
+ensure_config_directory()
+
+# Load prompts from user configuration directory
 prompt_jsons = {}
-for prompt_file in glob.glob(os.path.join(PROMPTS_DIR, "*.json")):
-    name = os.path.splitext(os.path.basename(prompt_file))[0]
-    with open(prompt_file, "r", encoding="utf-8") as f:
-        try:
-            prompt_jsons[name] = json.load(f)
-        except Exception as e:
-            logger.error(f"Failed to load prompt file {prompt_file}: {e}")
+if os.path.exists(USER_PROMPTS_DIR):
+    for prompt_file in glob.glob(os.path.join(USER_PROMPTS_DIR, "*.json")):
+        name = os.path.splitext(os.path.basename(prompt_file))[0]
+        with open(prompt_file, "r", encoding="utf-8") as f:
+            try:
+                prompt_jsons[name] = json.load(f)
+                logger.debug(f"Loaded prompt: {name}")
+            except Exception as e:
+                logger.error(f"Failed to load prompt file {prompt_file}: {e}")
+
+if not prompt_jsons:
+    logger.warning("No prompt files loaded. Some features may not work correctly.")
+    logger.info(f"Add custom prompts to: {USER_PROMPTS_DIR}")
+else:
+    logger.debug(f"Loaded {len(prompt_jsons)} prompts from {USER_PROMPTS_DIR}")
+
+
+
+def show_complete_prompt(prompt_name, override_model=None):
+    """
+    Display the complete prompt that would be sent to the LLM.
+    Args:
+        prompt_name (str): Name of the prompt to show
+        override_model (str, optional): Model to override prompt's default model
+    """
+    if prompt_name not in prompt_jsons:
+        console.print(f"[red]❌ Prompt '{prompt_name}' not found.[/red]")
+        console.print(f"[yellow]Available prompts:[/yellow] {', '.join(sorted(prompt_jsons.keys()))}")
+        return
+
+    prompt_data = prompt_jsons[prompt_name]
+    system_prompt = prompt_data.get("system_prompt", "")
+    model = override_model or prompt_data.get("model", "openai/gpt-4o-mini")
+    assistant_input = prompt_data.get("assistant_input", None)
+
+    # Add common_base if it exists and this isn't the common_base prompt itself
+    if prompt_name != "common_base" and "common_base" in prompt_jsons:
+        common_base_prompt = prompt_jsons["common_base"].get("system_prompt", "")
+        if common_base_prompt:
+            system_prompt = f"{common_base_prompt}\n\n{system_prompt}"
+
+    console.print(f"\n[bold blue]📋 Complete Prompt Preview: '{prompt_name}'[/bold blue]")
+    console.print("=" * 60)
+
+    console.print(f"[bold green]🤖 Model:[/bold green] {model}")
+    if override_model:
+        console.print(f"[yellow]   (Overridden from command line)[/yellow]")
+
+    console.print(f"\n[bold green]💬 System Prompt:[/bold green]")
+    console.print(f"[dim]{'-' * 40}[/dim]")
+    if system_prompt:
+        console.print(system_prompt)
+    else:
+        console.print("[dim](No system prompt)[/dim]")
+
+    if assistant_input:
+        console.print(f"\n[bold green]🤖 Assistant Input:[/bold green]")
+        console.print(f"[dim]{'-' * 40}[/dim]")
+        console.print(assistant_input)
+
+    console.print(f"\n[dim]{'=' * 60}[/dim]")
+    console.print(f"[yellow]💡 Usage:[/yellow] zapgpt --use-prompt {prompt_name} \"Your question here\"")
+    if not override_model and prompt_data.get("model"):
+        console.print(f"[yellow]💡 Override model:[/yellow] zapgpt --use-prompt {prompt_name} -m your-model \"Your question\"")
 
 
 def pretty(x):
@@ -746,185 +991,19 @@ class OpenAIClient(BaseLLMClient):
             self.output = output
             logger.debug(f"No output on screen, {self.output=}")
 
-        self.price = {
-            "gpt-4.1": {"prompt_tokens": 0.002, "completion_tokens": 0.0005},
-            "gpt-4.1-mini": {"prompt_tokens": 0.0004, "completion_tokens": 0.0001},
-            "gpt-4.1-nano": {"prompt_tokens": 0.0001, "completion_tokens": 2.5e-05},
-            "gpt-4.5-preview": {"prompt_tokens": 0.075, "completion_tokens": 0.0375},
-            "gpt-4o": {"prompt_tokens": 0.0025, "completion_tokens": 0.00125},
-            "gpt-4o-audio-preview": {"prompt_tokens": 0.0025, "completion_tokens": 0.0},
-            "gpt-4o-realtime-preview": {
-                "prompt_tokens": 0.005,
-                "completion_tokens": 0.0025,
-            },
-            "gpt-4o-mini": {"prompt_tokens": 0.00015, "completion_tokens": 7.5e-05},
-            "gpt-4o-mini-audio-preview": {
-                "prompt_tokens": 0.00015,
-                "completion_tokens": 0.0,
-            },
-            "gpt-4o-mini-realtime-preview": {
-                "prompt_tokens": 0.0006,
-                "completion_tokens": 0.0003,
-            },
-            "o1": {"prompt_tokens": 0.015, "completion_tokens": 0.0075},
-            "o1-pro": {"prompt_tokens": 0.15, "completion_tokens": 0.0},
-            "o3-pro": {"prompt_tokens": 0.02, "completion_tokens": 0.0},
-            "o3": {"prompt_tokens": 0.002, "completion_tokens": 0.0005},
-            "o4-mini": {"prompt_tokens": 0.0011, "completion_tokens": 0.000275},
-            "o3-mini": {"prompt_tokens": 0.0011, "completion_tokens": 0.00055},
-            "o1-mini": {"prompt_tokens": 0.0011, "completion_tokens": 0.00055},
-            "codex-mini-latest": {
-                "prompt_tokens": 0.0015,
-                "completion_tokens": 0.000375,
-            },
-            "gpt-4o-mini-search-preview": {
-                "prompt_tokens": 0.00015,
-                "completion_tokens": 0.0,
-            },
-            "gpt-4o-search-preview": {
-                "prompt_tokens": 0.0025,
-                "completion_tokens": 0.0,
-            },
-            "computer-use-preview": {"prompt_tokens": 0.003, "completion_tokens": 0.0},
-            "gpt-image-1": {"prompt_tokens": 0.005, "completion_tokens": 0.00125},
-            "o3_flex": {"prompt_tokens": 0.001, "completion_tokens": 0.00025},
-            "o4-mini_flex": {
-                "prompt_tokens": 0.00055,
-                "completion_tokens": 0.00013800000000000002,
-            },
-            "gpt-4o-audio-preview_audio": {
-                "prompt_tokens": 0.04,
-                "completion_tokens": 0.08,
-            },
-            "gpt-4o-mini-audio-preview_audio": {
-                "prompt_tokens": 0.01,
-                "completion_tokens": 0.02,
-            },
-            "gpt-4o-realtime-preview_audio": {
-                "prompt_tokens": 0.04,
-                "completion_tokens": 0.08,
-            },
-            "gpt-4o-mini-realtime-preview_audio": {
-                "prompt_tokens": 0.01,
-                "completion_tokens": 0.02,
-            },
-            "gpt-image-1_image_tokens": {
-                "prompt_tokens": 0.01,
-                "completion_tokens": 0.04,
-            },
-            "o4-mini-2025-04-16": {"prompt_tokens": 0.004, "completion_tokens": 0.001},
-            "o4-mini-2025-04-16_with_data_sharing": {
-                "prompt_tokens": 0.002,
-                "completion_tokens": 0.0005,
-            },
-            "gpt-4.1-2025-04-14": {
-                "prompt_tokens": 0.003,
-                "completion_tokens": 0.00075,
-            },
-            "gpt-4.1-mini-2025-04-14": {
-                "prompt_tokens": 0.0008,
-                "completion_tokens": 0.0002,
-            },
-            "gpt-4.1-nano-2025-04-14": {
-                "prompt_tokens": 0.0002,
-                "completion_tokens": 5e-05,
-            },
-            "gpt-4o-2024-08-06": {
-                "prompt_tokens": 0.00375,
-                "completion_tokens": 0.001875,
-            },
-            "gpt-4o-mini-2024-07-18": {
-                "prompt_tokens": 0.0003,
-                "completion_tokens": 0.00015,
-            },
-            "gpt-3.5-turbo_finetune": {
-                "prompt_tokens": 0.003,
-                "completion_tokens": 0.0,
-            },
-            "davinci-002_finetune": {"prompt_tokens": 0.012, "completion_tokens": 0.0},
-            "babbage-002_finetune": {"prompt_tokens": 0.0016, "completion_tokens": 0.0},
-            "gpt-4o-mini-tts": {"prompt_tokens": 0.0006, "completion_tokens": 0.0},
-            "gpt-4o-transcribe": {"prompt_tokens": 0.0025, "completion_tokens": 0.01},
-            "gpt-4o-mini-transcribe": {
-                "prompt_tokens": 0.00125,
-                "completion_tokens": 0.005,
-            },
-            "gpt-4o-mini-tts_audio": {"prompt_tokens": 0.0, "completion_tokens": 0.012},
-            "gpt-4o-transcribe_audio": {
-                "prompt_tokens": 0.006,
-                "completion_tokens": 0.0,
-            },
-            "gpt-4o-mini-transcribe_audio": {
-                "prompt_tokens": 0.003,
-                "completion_tokens": 0.0,
-            },
-            "text-embedding-3-small": {
-                "prompt_tokens": 2e-05,
-                "completion_tokens": 0.0,
-            },
-            "text-embedding-3-large": {
-                "prompt_tokens": 0.00013000000000000002,
-                "completion_tokens": 0.0,
-            },
-            "text-embedding-ada-002": {
-                "prompt_tokens": 0.0001,
-                "completion_tokens": 0.0,
-            },
-            "omni-moderation-latest": {"prompt_tokens": 0.0, "completion_tokens": 0.0},
-            "text-moderation-latest": {"prompt_tokens": 0.0, "completion_tokens": 0.0},
-            "text-moderation-007": {"prompt_tokens": 0.0, "completion_tokens": 0.0},
-            "chatgpt-4o-latest": {"prompt_tokens": 0.005, "completion_tokens": 0.015},
-            "gpt-4-turbo": {"prompt_tokens": 0.01, "completion_tokens": 0.03},
-            "gpt-4": {"prompt_tokens": 0.03, "completion_tokens": 0.06},
-            "gpt-4-32k": {"prompt_tokens": 0.06, "completion_tokens": 0.12},
-            "gpt-3.5-turbo-0125": {
-                "prompt_tokens": 0.0005,
-                "completion_tokens": 0.0015,
-            },
-            "gpt-3.5-turbo-instruct": {
-                "prompt_tokens": 0.0015,
-                "completion_tokens": 0.002,
-            },
-            "gpt-3.5-turbo-16k-0613": {
-                "prompt_tokens": 0.003,
-                "completion_tokens": 0.004,
-            },
-            "davinci-002_other": {"prompt_tokens": 0.002, "completion_tokens": 0.002},
-            "babbage-002_other": {"prompt_tokens": 0.0004, "completion_tokens": 0.0004},
-            "Code_Interpreter": {
-                "prompt_tokens": 2.9999999999999997e-05,
-                "completion_tokens": 2.9999999999999997e-05,
-            },
-            "File_Search_Storage": {
-                "prompt_tokens": 0.0001,
-                "completion_tokens": 0.0001,
-            },
-            "File_Search_Tool_Call": {
-                "prompt_tokens": 0.0025,
-                "completion_tokens": 0.0025,
-            },
-            "gpt-4.1_search_low": {"prompt_tokens": 0.03, "completion_tokens": 0.03},
-            "gpt-4.1_search_medium": {
-                "prompt_tokens": 0.035,
-                "completion_tokens": 0.035,
-            },
-            "gpt-4.1_search_high": {"prompt_tokens": 0.05, "completion_tokens": 0.05},
-            "gpt-4.1-mini_search_low": {
-                "prompt_tokens": 0.025,
-                "completion_tokens": 0.025,
-            },
-            "gpt-4.1-mini_search_medium": {
-                "prompt_tokens": 0.0275,
-                "completion_tokens": 0.0275,
-            },
-            "gpt-4.1-mini_search_high": {
-                "prompt_tokens": 0.03,
-                "completion_tokens": 0.03,
-            },
-            "Whisper": {"prompt_tokens": 6e-06, "completion_tokens": 0.0},
-            "TTS": {"prompt_tokens": 0.015, "completion_tokens": 0.0},
-            "TTS_HD": {"prompt_tokens": 0.03, "completion_tokens": 0.0},
-        }
+        # Load pricing data from user config directory
+        pricing_data = load_pricing_data()
+        self.price = pricing_data.get("openai", {})
+
+        if not self.price:
+            logger.warning("No OpenAI pricing data found in config. Using basic fallback pricing.")
+            # Basic fallback pricing for essential models
+            self.price = {
+                "gpt-4o-mini": {"prompt_tokens": 0.00015, "completion_tokens": 7.5e-05},
+                "gpt-4o": {"prompt_tokens": 0.0025, "completion_tokens": 0.00125},
+                "gpt-4": {"prompt_tokens": 0.03, "completion_tokens": 0.06},
+                "gpt-3.5-turbo": {"prompt_tokens": 0.0005, "completion_tokens": 0.0015},
+            }
 
     def build_payload(self, prompt: str) -> Dict:
         """
@@ -1033,14 +1112,14 @@ class OpenAIClient(BaseLLMClient):
             size="256x256",  # other options: "512x512", "256x256" (DALL·E 2), or "1024x1024" (DALL·E 3)
         )
         image_url = response.data[0].url
-        print("Image URL:", image_url)
+        output.info(f"Image URL: {image_url}", f"[green]🇺🇷 Image URL:[/green] {image_url}")
         response = requests.get(image_url)
         if response.status_code == 200:
             with open("/tmp/t.png", "wb") as f:
                 f.write(response.content)
-            print("Image written as /tmp/t.png")
+            output.success("Image written as /tmp/t.png")
         else:
-            print(f"Failed to download. Status code: {response.status_code}")
+            output.error(f"Failed to download. Status code: {response.status_code}")
 
 
 class OpenRouterClient(BaseLLMClient):
@@ -1083,7 +1162,7 @@ class OpenRouterClient(BaseLLMClient):
             file=file,
             max_tokens=max_tokens,
         )
-        self.get_key("OPENROUTER_KEY")
+        self.api_key = api_key
         logger.debug("using auto routing with lowest cost model")
         # self.system_prompt = system_prompt
         # logger.debug(f"system prompt {self.system_prompt=}")
@@ -1230,7 +1309,7 @@ class GithubClient(BaseLLMClient):
             file=file,
             max_tokens=max_tokens,
         )
-        self.get_key("GITHUB_KEY")
+        self.api_key = api_key
         logger.debug("using auto routing with lowest cost model")
         # self.system_prompt = system_prompt
         # logger.debug(f"system prompt {self.system_prompt=}")
@@ -1409,6 +1488,111 @@ provider_map = {
     "github": GithubClient,
 }
 
+# Mapping of providers to their required environment variables
+provider_env_vars = {
+    "openai": "OPENAI_API_KEY",
+    "openrouter": "OPENROUTER_KEY",
+    "together": "TOGETHER_API_KEY",
+    "replicate": "REPLICATE_API_TOKEN",
+    "deepinfra": "DEEPINFRA_API_TOKEN",
+    "github": "GITHUB_KEY",
+}
+
+
+def query_llm(prompt: str, provider: str = "openai", model: str = None,
+              system_prompt: str = None, use_prompt: str = None,
+              temperature: float = 0.3, max_tokens: int = 4096,
+              quiet: bool = True) -> str:
+    """
+    Programmatic API to query LLM providers from Python scripts.
+
+    Args:
+        prompt (str): The user prompt/question
+        provider (str): LLM provider (openai, openrouter, together, etc.)
+        model (str, optional): Specific model to use
+        system_prompt (str, optional): Custom system prompt
+        use_prompt (str, optional): Use a predefined prompt template
+        temperature (float): Response randomness (0.0-1.0)
+        max_tokens (int): Maximum response tokens
+        quiet (bool): Suppress all output except response
+
+    Returns:
+        str: The LLM response text
+
+    Raises:
+        EnvironmentError: If required API key is missing
+        ValueError: If provider is not supported
+
+    Example:
+        >>> from zapgpt import query_llm
+        >>> response = query_llm("What is Python?", provider="openai")
+        >>> print(response)
+    """
+    # Validate provider
+    if provider not in provider_map:
+        raise ValueError(f"Unsupported provider: {provider}. Available: {list(provider_map.keys())}")
+
+    # Check API key
+    required_env_var = provider_env_vars.get(provider)
+    api_key = None
+    if required_env_var:
+        api_key = os.getenv(required_env_var)
+        if not api_key:
+            raise EnvironmentError(f"Missing required environment variable: {required_env_var}")
+
+    # Load prompts for use_prompt functionality
+    prompt_jsons = {}
+    try:
+        for prompt_file in glob.glob(os.path.join(USER_PROMPTS_DIR, "*.json")):
+            name = os.path.splitext(os.path.basename(prompt_file))[0]
+            with open(prompt_file, "r", encoding="utf-8") as f:
+                prompt_jsons[name] = json.load(f)
+    except Exception as e:
+        if not quiet:
+            logger.error(f"Failed to load prompts: {e}")
+
+    # Load prompts if using predefined prompt
+    final_system_prompt = system_prompt
+    final_model = model
+
+    if use_prompt:
+        if use_prompt in prompt_jsons:
+            prompt_data = prompt_jsons[use_prompt]
+            final_system_prompt = prompt_data.get("system_prompt", system_prompt)
+            if not model:  # Only use prompt's model if not explicitly provided
+                final_model = prompt_data.get("model")
+
+            # Add common_base if it exists
+            if use_prompt != "common_base" and "common_base" in prompt_jsons:
+                common_base_prompt = prompt_jsons["common_base"].get("system_prompt", "")
+                if common_base_prompt and final_system_prompt:
+                    final_system_prompt = f"{common_base_prompt}\n\n{final_system_prompt}"
+        else:
+            raise ValueError(f"Prompt '{use_prompt}' not found. Available: {list(prompt_jsons.keys())}")
+
+    # Set default model if none specified
+    if not final_model:
+        final_model = "openai/gpt-4o-mini"  # Default model
+
+    # Create client
+    client_class = provider_map[provider]
+    llm_client = client_class(
+        model=final_model,
+        api_key=api_key,
+        system_prompt=final_system_prompt,
+        temperature=temperature,
+        max_tokens=max_tokens,
+    )
+
+    # Send request and return response
+    try:
+        response = llm_client.send_request(prompt)
+        return response.strip() if response else ""
+    except Exception as e:
+        if not quiet:
+            logger.error(f"Error querying {provider}: {e}")
+        raise
+
 
 class MyHelpFormatter(RichHelpFormatter):
     def __init__(self, prog):
@@ -1437,28 +1621,11 @@ def main():
     """
     logger.info("Starting zapgpt CLI main entry point")
 
-    # Print zapgpt logo/banner (user-facing, not logged)
-    console.print(
-        """
-███████╗ █████╗ ██████╗  ██████╗ ██████╗ ████████╗
-╚══███╔╝██╔══██╗██╔══██╗██╔════╝ ██╔══██╗╚══██╔══╝
-  ███╔╝ ███████║██████╔╝██║  ███╗██████╔╝   ██║
- ███╔╝  ██╔══██║██╔═══╝ ██║   ██║██╔═══╝    ██║
-███████╗██║  ██║██║     ╚██████╔╝██║        ██║
-╚══════╝╚═╝  ╚═╝╚═╝      ╚═════╝ ╚═╝        ╚═╝
-        """,
-        style="green",
-        markup=False,
-    )
-
-    # Gather available prompt choices from the prompts directory and import glob
-    import glob
-    import json
-
+    # Gather available prompt choices from the prompts directory
     # Dynamically load all JSON prompt files from the prompts directory
     PROMPTS_DIR = os.path.join(current_script_path, "prompts")
     prompt_jsons = {}
-    for prompt_file in glob.glob(os.path.join(PROMPTS_DIR, "*.json")):
+    for prompt_file in glob.glob(os.path.join(USER_PROMPTS_DIR, "*.json")):
         name = os.path.splitext(os.path.basename(prompt_file))[0]
         with open(prompt_file, "r", encoding="utf-8") as f:
             try:
@@ -1545,6 +1712,12 @@ def main():
         help="Set the logging level.",
     )
     parser.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Suppress all console output except the LLM response (useful for scripting).",
+    )
+    parser.add_argument(
         "-c", "--chat-id", default=None, help="Continue in same chat session"
     )
     parser.add_argument(
@@ -1574,6 +1747,16 @@ def main():
         help="Prompt to generate image.",
     )
     parser.add_argument("-o", "--output", default=None, help="The output file to use.")
+    parser.add_argument(
+        "--config",
+        action="store_true",
+        help="Show configuration directory information.",
+    )
+    parser.add_argument(
+        "--show-prompt",
+        type=str,
+        help="Show the complete prompt that would be sent to LLM for the given prompt name.",
+    )
 
     args = parser.parse_args()
 
@@ -1590,12 +1773,49 @@ def main():
     )
 
     model = args.model
-    logger.debug(f"Arguments: {args}")
-    try:
-        logger.setLevel(getattr(logging, args.log_level.upper()))
-        logger.debug(f"Log level is set to {args.log_level.upper()}")
-    except Exception as e:
-        logger.error(f"Invalid log level: {e}")
+
+    # Initialize global output handler
+    global output
+    output = OutputHandler(quiet_mode=args.quiet)
+
+    # Handle quiet mode - suppress all output except LLM response
+    if args.quiet:
+        logger.setLevel(logging.CRITICAL)  # Only show critical errors
+    else:
+        # Print zapgpt logo/banner (user-facing, not logged)
+        console.print(
+            """
+[bold yellow]
+        ███████╗
+       ████████╗
+      █████████╗
+     ██████████╗
+    ███████████╗
+   ████████████╗
+  █████████████╗
+ ██████████████╗
+███████████████╗
+ ╚█████████████╝
+  ╚███████████╝
+   ╚█████████╝
+    ╚███████╝
+     ╚█████╝
+      ╚███╝
+       ╚█╝
+[/bold yellow]
+[bold blue]╔══════════════════════════════════════════════════╗
+║ ⚡ [bold yellow]Zap[/bold yellow][bold white]GPT[/bold white] [dim]v3.0.0[/dim] 🚀✨ Multi-provider AI automation 🛡️ ║
+╚══════════════════════════════════════════════════╝[/bold blue]
+            """,
+            justify="center"
+        )
+
+        logger.debug(f"Arguments: {args}")
+        try:
+            logger.setLevel(getattr(logging, args.log_level.upper()))
+            logger.debug(f"Log level is set to {args.log_level.upper()}")
+        except Exception as e:
+            logger.error(f"Invalid log level: {e}")
 
     # Check if output file already exists
     if args.output:
@@ -1622,8 +1842,13 @@ def main():
                     system_prompt = f"{common_base_prompt}\n\n{system_prompt}"
                     logger.info(f"Combined 'common_base' with '{prompt_name}' prompt")
 
-            model = prompt_data.get("model", args.model)
-            logger.info(f"Loaded prompt '{prompt_name}' with model '{model}'")
+            # User-provided model takes precedence over prompt's model
+            if args.model != "openai/gpt-4.1":  # User explicitly provided a model
+                model = args.model
+                logger.info(f"Using user-specified model '{model}' (overriding prompt default)")
+            else:
+                model = prompt_data.get("model", args.model)
+                logger.info(f"Using model from prompt '{prompt_name}': '{model}'")
         else:
             logger.error(f"Prompt '{prompt_name}' not found in prompts directory.")
             system_prompt = ""
@@ -1637,9 +1862,21 @@ def main():
         assistant_input = prompt_jsons[prompt_name].get("assistant_input", None)
 
     client_class = provider_map[args.provider]
+
+    # Get the correct API key for the selected provider
+    required_env_var = provider_env_vars.get(args.provider)
+    api_key = None
+    if required_env_var:
+        api_key = os.getenv(required_env_var)
+        if not api_key:
+            logger.error(f"Missing required environment variable: {required_env_var}")
+            output.error(f"Missing API key for {args.provider}")
+            output.warning(f"Please set the environment variable: {required_env_var}")
+            sys.exit(1)
+
     llm_client = client_class(
         model=model,
-        api_key=os.getenv("OPENAI_API_KEY"),
+        api_key=api_key,
         system_prompt=system_prompt,
         temperature=args.temp,
         file=args.file,
@@ -1681,6 +1918,15 @@ def main():
         BaseLLMClient.show_total_cost()
         return
 
+    if args.config:
+        from .config import show_config_info
+        show_config_info()
+        return
+
+    if args.show_prompt:
+        show_complete_prompt(args.show_prompt, args.model)
+        return
+
     if args.query:
         # Compose conversation with optional assistant_input
         prompt = args.query
@@ -1702,7 +1948,8 @@ def main():
                 logger.debug(f"Response: {response=}")
                 llm_client.handle_response(response)
             else:
-                print("Bad Response")
+                logger.error("Bad Response from LLM")
+                output.error("Bad Response from LLM")
         except Exception as e:
             logger.exception(f"❌ Error while querying: {e}")
         return

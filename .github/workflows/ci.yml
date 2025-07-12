@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12']
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install uv
+      uses: astral-sh/setup-uv@v2
+    
+    - name: Install dependencies
+      run: |
+        uv sync --all-extras --dev
+    
+    - name: Lint with ruff
+      run: |
+        uv run ruff check .
+    
+    - name: Format check with ruff
+      run: |
+        uv run ruff format --check .
+    
+    - name: Type check with mypy
+      run: |
+        uv run mypy zapgpt --ignore-missing-imports
+      continue-on-error: true  # Don't fail CI on type errors for now
+    
+    - name: Run test suite
+      run: |
+        uv run pytest tests/ -v --cov=zapgpt --cov-report=xml --cov-report=term-missing
+      env:
+        OPENAI_API_KEY: dummy_key_for_testing
+        OPENROUTER_KEY: dummy_key_for_testing
+        TOGETHER_API_KEY: dummy_key_for_testing
+    
+    - name: Test package installation
+      run: |
+        uv run python verify_install.py
+    
+    - name: Test CLI functionality
+      run: |
+        uv run zapgpt --help
+        uv run zapgpt --config
+        uv run zapgpt --list-prompt
+        uv run zapgpt --show-prompt coding
+      env:
+        OPENAI_API_KEY: dummy_key_for_testing
+    
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+      if: matrix.python-version == '3.11' && matrix.os == 'ubuntu-latest'
+
+  build:
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install uv
+      uses: astral-sh/setup-uv@v2
+    
+    - name: Build package
+      run: |
+        uv build
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: dist
+        path: dist/
