@@ -14,6 +14,8 @@ A command line tool to use chatgpt - currently only OpenAI API is supported.
 
 Updated to version v2.
 
+[![Introduction](https://i.ytimg.com/vi/hpiVtj_gSD4/hqdefault.jpg)](https://www.youtube.com/watch?v=hpiVtj_gSD4)
+
 ## 💾 Requirements
 
 * Python 3.8+
@@ -49,6 +51,9 @@ Or keep it interactive:
 ```bash
 python zapgpt.py
 ```
+
+[![Using zapgpt for pentesting on Kali](https://i.ytimg.com/vi/vDTwIsEUheE/hqdefault.jpg)](https://www.youtube.com/watch?v=hpiVtj_gSD4)
+
 
 ## 🛠️ Features
 
