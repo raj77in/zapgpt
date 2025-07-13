@@ -25,6 +25,7 @@ __pycache__/
 *$py.class
 .venv/
 uv.lock
+.ruff_cache/
 
 # C extensions
 *.so

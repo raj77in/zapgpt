@@ -13,11 +13,11 @@ CLI Usage:
 Programmatic Usage:
     from zapgpt import query_llm
     response = query_llm("What is Python?", provider="openai")
-    
+
     # With custom prompt
     response = query_llm(
-        "Debug this code", 
-        provider="openai", 
+        "Debug this code",
+        provider="openai",
         use_prompt="coding",
         model="gpt-4o"
     )
@@ -29,7 +29,8 @@ __email__ = "amit@example.com"
 
 # Import main functionality for programmatic use
 try:
-    from .main import query_llm, main
+    from .main import main, query_llm
+
     __all__ = ["query_llm", "main"]
 except ImportError:
     # Handle case where dependencies might not be available

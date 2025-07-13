@@ -48,7 +48,6 @@ from argparse import ArgumentParser, ArgumentTypeError  # For CLI parsing
 from datetime import datetime  # For timestamps
 from pathlib import Path  # For path manipulations
 from textwrap import dedent  # For help/epilog formatting
-from typing import Dict  # For type hints
 
 # ===============================
 # Third-Party Imports
@@ -69,6 +68,7 @@ from tabulate import tabulate  # For table formatting
 # ===============================
 # Configuration and Setup
 # ===============================
+
 
 class OutputHandler:
     """Centralized output handler that respects quiet mode"""
@@ -110,6 +110,7 @@ class OutputHandler:
         else:
             self.console.print(styled_message or f"[yellow]⚠️ {message}[/yellow]")
 
+
 # Global output handler (will be initialized in main)
 output = None
 
@@ -134,6 +135,7 @@ DB_FILE = os.path.join(CONFIG_DIR, "gpt_usage.db")
 # Configuration directory setup
 USER_PROMPTS_DIR = os.path.join(CONFIG_DIR, "prompts")
 
+
 def ensure_config_directory():
     """Ensure the configuration directory exists and copy default files if needed."""
     if not os.path.exists(CONFIG_DIR):
@@ -150,42 +152,54 @@ def ensure_config_directory():
     # Always check and copy pricing file if it doesn't exist
     copy_default_pricing_to_config()
 
+
 def copy_default_prompts_to_config():
     """Copy default prompt files from package to user config directory."""
     try:
         # Try to load default prompts from package
         from importlib import resources
-        if hasattr(resources, 'files'):
+
+        if hasattr(resources, "files"):
             # Python 3.9+
-            prompts_pkg = resources.files('zapgpt') / 'prompts'
+            prompts_pkg = resources.files("zapgpt") / "prompts"
             for prompt_file in prompts_pkg.iterdir():
-                if prompt_file.suffix == '.json':
-                    content = prompt_file.read_text(encoding='utf-8')
+                if prompt_file.suffix == ".json":
+                    content = prompt_file.read_text(encoding="utf-8")
                     user_prompt_file = os.path.join(USER_PROMPTS_DIR, prompt_file.name)
-                    with open(user_prompt_file, 'w', encoding='utf-8') as f:
+                    with open(user_prompt_file, "w", encoding="utf-8") as f:
                         f.write(content)
                     logger.debug(f"Copied default prompt: {prompt_file.name}")
         else:
             # Python 3.8 fallback
             try:
                 import importlib_resources
-                prompts_pkg = importlib_resources.files('zapgpt') / 'prompts'
+
+                prompts_pkg = importlib_resources.files("zapgpt") / "prompts"
                 for prompt_file in prompts_pkg.iterdir():
-                    if prompt_file.suffix == '.json':
-                        content = prompt_file.read_text(encoding='utf-8')
-                        user_prompt_file = os.path.join(USER_PROMPTS_DIR, prompt_file.name)
-                        with open(user_prompt_file, 'w', encoding='utf-8') as f:
+                    if prompt_file.suffix == ".json":
+                        content = prompt_file.read_text(encoding="utf-8")
+                        user_prompt_file = os.path.join(
+                            USER_PROMPTS_DIR, prompt_file.name
+                        )
+                        with open(user_prompt_file, "w", encoding="utf-8") as f:
                             f.write(content)
                         logger.debug(f"Copied default prompt: {prompt_file.name}")
             except ImportError:
-                logger.warning("Could not copy default prompts: importlib_resources not available")
+                logger.warning(
+                    "Could not copy default prompts: importlib_resources not available"
+                )
                 # Fallback: try to copy from development directory
                 dev_prompts_dir = os.path.join(current_script_path, "prompts")
                 if os.path.exists(dev_prompts_dir):
                     import shutil
-                    for prompt_file in glob.glob(os.path.join(dev_prompts_dir, "*.json")):
+
+                    for prompt_file in glob.glob(
+                        os.path.join(dev_prompts_dir, "*.json")
+                    ):
                         shutil.copy2(prompt_file, USER_PROMPTS_DIR)
-                        logger.debug(f"Copied default prompt: {os.path.basename(prompt_file)}")
+                        logger.debug(
+                            f"Copied default prompt: {os.path.basename(prompt_file)}"
+                        )
 
         logger.info(f"Default prompts copied to {USER_PROMPTS_DIR}")
         logger.info("You can now customize these prompts or add your own!")
@@ -193,6 +207,7 @@ def copy_default_prompts_to_config():
     except Exception as e:
         logger.error(f"Failed to copy default prompts: {e}")
         logger.info(f"Please manually create prompt files in {USER_PROMPTS_DIR}")
+
 
 def copy_default_pricing_to_config():
     """Copy default pricing file from package to user config directory."""
@@ -204,35 +219,45 @@ def copy_default_pricing_to_config():
     try:
         # Try to load default pricing from package
         from importlib import resources
-        if hasattr(resources, 'files'):
+
+        if hasattr(resources, "files"):
             # Python 3.9+
             try:
-                pricing_pkg = resources.files('zapgpt') / 'default_pricing.json'
-                content = pricing_pkg.read_text(encoding='utf-8')
-                with open(pricing_file, 'w', encoding='utf-8') as f:
+                pricing_pkg = resources.files("zapgpt") / "default_pricing.json"
+                content = pricing_pkg.read_text(encoding="utf-8")
+                with open(pricing_file, "w", encoding="utf-8") as f:
                     f.write(content)
                 logger.debug("Copied default pricing file")
             except Exception:
                 # Fallback to development directory
-                dev_pricing_file = os.path.join(current_script_path, "default_pricing.json")
+                dev_pricing_file = os.path.join(
+                    current_script_path, "default_pricing.json"
+                )
                 if os.path.exists(dev_pricing_file):
                     import shutil
+
                     shutil.copy2(dev_pricing_file, pricing_file)
                     logger.debug("Copied pricing from development directory")
         else:
             # Python 3.8 fallback
             try:
                 import importlib_resources
-                pricing_pkg = importlib_resources.files('zapgpt') / 'default_pricing.json'
-                content = pricing_pkg.read_text(encoding='utf-8')
-                with open(pricing_file, 'w', encoding='utf-8') as f:
+
+                pricing_pkg = (
+                    importlib_resources.files("zapgpt") / "default_pricing.json"
+                )
+                content = pricing_pkg.read_text(encoding="utf-8")
+                with open(pricing_file, "w", encoding="utf-8") as f:
                     f.write(content)
                 logger.debug("Copied default pricing file")
             except ImportError:
                 # Final fallback to development directory
-                dev_pricing_file = os.path.join(current_script_path, "default_pricing.json")
+                dev_pricing_file = os.path.join(
+                    current_script_path, "default_pricing.json"
+                )
                 if os.path.exists(dev_pricing_file):
                     import shutil
+
                     shutil.copy2(dev_pricing_file, pricing_file)
                     logger.debug("Copied pricing from development directory")
 
@@ -243,6 +268,7 @@ def copy_default_pricing_to_config():
         logger.error(f"Failed to copy default pricing: {e}")
         logger.info(f"Please manually create pricing.json in {CONFIG_DIR}")
 
+
 def load_pricing_data():
     """Load pricing data from user config directory."""
     pricing_file = os.path.join(CONFIG_DIR, "pricing.json")
@@ -252,13 +278,14 @@ def load_pricing_data():
         return {}
 
     try:
-        with open(pricing_file, 'r', encoding='utf-8') as f:
+        with open(pricing_file, encoding="utf-8") as f:
             pricing_data = json.load(f)
         logger.debug(f"Loaded pricing data from {pricing_file}")
         return pricing_data
     except Exception as e:
         logger.error(f"Failed to load pricing data: {e}")
         return {}
+
 
 # Initialize configuration directory
 ensure_config_directory()
@@ -268,7 +295,7 @@ prompt_jsons = {}
 if os.path.exists(USER_PROMPTS_DIR):
     for prompt_file in glob.glob(os.path.join(USER_PROMPTS_DIR, "*.json")):
         name = os.path.splitext(os.path.basename(prompt_file))[0]
-        with open(prompt_file, "r", encoding="utf-8") as f:
+        with open(prompt_file, encoding="utf-8") as f:
             try:
                 prompt_jsons[name] = json.load(f)
                 logger.debug(f"Loaded prompt: {name}")
@@ -282,7 +309,6 @@ else:
     logger.debug(f"Loaded {len(prompt_jsons)} prompts from {USER_PROMPTS_DIR}")
 
 
-
 def show_complete_prompt(prompt_name, override_model=None):
     """
     Display the complete prompt that would be sent to the LLM.
@@ -292,7 +318,9 @@ def show_complete_prompt(prompt_name, override_model=None):
     """
     if prompt_name not in prompt_jsons:
         console.print(f"[red]❌ Prompt '{prompt_name}' not found.[/red]")
-        console.print(f"[yellow]Available prompts:[/yellow] {', '.join(sorted(prompt_jsons.keys()))}")
+        console.print(
+            f"[yellow]Available prompts:[/yellow] {', '.join(sorted(prompt_jsons.keys()))}"
+        )
         return
 
     prompt_data = prompt_jsons[prompt_name]
@@ -306,14 +334,16 @@ def show_complete_prompt(prompt_name, override_model=None):
         if common_base_prompt:
             system_prompt = f"{common_base_prompt}\n\n{system_prompt}"
 
-    console.print(f"\n[bold blue]📋 Complete Prompt Preview: '{prompt_name}'[/bold blue]")
+    console.print(
+        f"\n[bold blue]📋 Complete Prompt Preview: '{prompt_name}'[/bold blue]"
+    )
     console.print("=" * 60)
 
     console.print(f"[bold green]🤖 Model:[/bold green] {model}")
     if override_model:
-        console.print(f"[yellow]   (Overridden from command line)[/yellow]")
+        console.print("[yellow]   (Overridden from command line)[/yellow]")
 
-    console.print(f"\n[bold green]💬 System Prompt:[/bold green]")
+    console.print("\n[bold green]💬 System Prompt:[/bold green]")
     console.print(f"[dim]{'-' * 40}[/dim]")
     if system_prompt:
         console.print(system_prompt)
@@ -321,14 +351,18 @@ def show_complete_prompt(prompt_name, override_model=None):
         console.print("[dim](No system prompt)[/dim]")
 
     if assistant_input:
-        console.print(f"\n[bold green]🤖 Assistant Input:[/bold green]")
+        console.print("\n[bold green]🤖 Assistant Input:[/bold green]")
         console.print(f"[dim]{'-' * 40}[/dim]")
         console.print(assistant_input)
 
     console.print(f"\n[dim]{'=' * 60}[/dim]")
-    console.print(f"[yellow]💡 Usage:[/yellow] zapgpt --use-prompt {prompt_name} \"Your question here\"")
+    console.print(
+        f'[yellow]💡 Usage:[/yellow] zapgpt --use-prompt {prompt_name} "Your question here"'
+    )
     if not override_model and prompt_data.get("model"):
-        console.print(f"[yellow]💡 Override model:[/yellow] zapgpt --use-prompt {prompt_name} -m your-model \"Your question\"")
+        console.print(
+            f'[yellow]💡 Override model:[/yellow] zapgpt --use-prompt {prompt_name} -m your-model "Your question"'
+        )
 
 
 def pretty(x):
@@ -507,7 +541,7 @@ class BaseLLMClient:
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
         c.execute(
-              """
+            """
               CREATE TABLE IF NOT EXISTS usage (
                 id INTEGER PRIMARY KEY,
                 timestamp TEXT,
@@ -582,7 +616,7 @@ class BaseLLMClient:
         if self.file:
             logger.debug(f"File is set to {self.file=}")
             try:
-                with open(self.file, "r", encoding="utf-8") as f:
+                with open(self.file, encoding="utf-8") as f:
                     file_content = f.read()
             except Exception as e:
                 logger.critical(f"❌ Failed to read file: {e}")
@@ -593,7 +627,7 @@ class BaseLLMClient:
         logger.debug(f"Created prompt is : {messages=}")
         return messages
 
-    def build_payload(self, prompt: str) -> Dict:
+    def build_payload(self, prompt: str) -> dict:
         """
         Build the payload for the API request. Should be implemented by subclasses.
         Belongs to: BaseLLMClient class.
@@ -607,7 +641,7 @@ class BaseLLMClient:
         logger.debug("build_payload called on BaseLLMClient (should be overridden)")
         raise NotImplementedError
 
-    def get_headers(self) -> Dict:
+    def get_headers(self) -> dict:
         """
         Return HTTP headers for API requests. Should be implemented by subclasses.
         Belongs to: BaseLLMClient class.
@@ -915,7 +949,7 @@ class BaseLLMClient:
         logger.debug(f"Counting tokens for model={model}")
         tokenizer = self.get_tokenizer("o4-mini")
         total = 0
-        for msg in messages:
+        for _msg in messages:
             total += len(tokenizer.encode("Your text goes here"))
         logger.debug(f"Token count: {total}")
         return total
@@ -954,7 +988,7 @@ class BaseLLMClient:
         api_key = os.getenv(env_var)
         if api_key is None:
             logger.error(f"Missing required environment variable: {env_var}")
-            raise EnvironmentError(f"Missing required environment variable: {env_var}")
+            raise OSError(f"Missing required environment variable: {env_var}")
         else:
             self.api_key = api_key
             logger.debug(f"API key set for {env_var}")
@@ -996,7 +1030,9 @@ class OpenAIClient(BaseLLMClient):
         self.price = pricing_data.get("openai", {})
 
         if not self.price:
-            logger.warning("No OpenAI pricing data found in config. Using basic fallback pricing.")
+            logger.warning(
+                "No OpenAI pricing data found in config. Using basic fallback pricing."
+            )
             # Basic fallback pricing for essential models
             self.price = {
                 "gpt-4o-mini": {"prompt_tokens": 0.00015, "completion_tokens": 7.5e-05},
@@ -1005,7 +1041,7 @@ class OpenAIClient(BaseLLMClient):
                 "gpt-3.5-turbo": {"prompt_tokens": 0.0005, "completion_tokens": 0.0015},
             }
 
-    def build_payload(self, prompt: str) -> Dict:
+    def build_payload(self, prompt: str) -> dict:
         """
         Build the payload for the OpenAI API request.
         Belongs to: OpenAIClient class.
@@ -1039,9 +1075,7 @@ class OpenAIClient(BaseLLMClient):
             days (int, optional): Number of days to fetch usage for. Defaults to 10.
         """
         if (admin_key := os.getenv("OPENAI_ADMIN_KEY")) is None:
-            raise EnvironmentError(
-                "Missing required environment variable: OPENAI_ADMIN_KEY"
-            )
+            raise OSError("Missing required environment variable: OPENAI_ADMIN_KEY")
         # client = OpenAIClient(
         #     # This is the default and can be omitted
         #     model="nothing",
@@ -1112,7 +1146,9 @@ class OpenAIClient(BaseLLMClient):
             size="256x256",  # other options: "512x512", "256x256" (DALL·E 2), or "1024x1024" (DALL·E 3)
         )
         image_url = response.data[0].url
-        output.info(f"Image URL: {image_url}", f"[green]🇺🇷 Image URL:[/green] {image_url}")
+        output.info(
+            f"Image URL: {image_url}", f"[green]🇺🇷 Image URL:[/green] {image_url}"
+        )
         response = requests.get(image_url)
         if response.status_code == 200:
             with open("/tmp/t.png", "wb") as f:
@@ -1250,10 +1286,10 @@ class ReplicateClient(BaseLLMClient):
         super().__init__(model, **kwargs)
         self.api_key = api_key
 
-    def build_payload(self, prompt: str) -> Dict:
+    def build_payload(self, prompt: str) -> dict:
         return {"input": {"prompt": prompt}, "model": self.model}
 
-    def get_headers(self) -> Dict:
+    def get_headers(self) -> dict:
         return {
             "Authorization": f"Token {self.api_key}",
             "Content-Type": "application/json",
@@ -1262,7 +1298,7 @@ class ReplicateClient(BaseLLMClient):
     def get_endpoint(self) -> str:
         return "https://api.replicate.com/v1/predictions"
 
-    def handle_response(self, response_json: Dict) -> str:
+    def handle_response(self, response_json: dict) -> str:
         output = response_json.get("output", "")
         # self.track_usage(self.model, "replicate", 0)
         return output
@@ -1470,7 +1506,7 @@ def get_prompt(filename):
     """
     logger.debug(f"Prompt file is {filename}")
     if os.path.exists(filename):
-        with open(filename, "r") as f:
+        with open(filename) as f:
             system_prompt = f.read()
             logger.debug(f"Prompt {system_prompt}")
         return system_prompt
@@ -1499,10 +1535,16 @@ provider_env_vars = {
 }
 
 
-def query_llm(prompt: str, provider: str = "openai", model: str = None,
-              system_prompt: str = None, use_prompt: str = None,
-              temperature: float = 0.3, max_tokens: int = 4096,
-              quiet: bool = True) -> str:
+def query_llm(
+    prompt: str,
+    provider: str = "openai",
+    model: str = None,
+    system_prompt: str = None,
+    use_prompt: str = None,
+    temperature: float = 0.3,
+    max_tokens: int = 4096,
+    quiet: bool = True,
+) -> str:
     """
     Programmatic API to query LLM providers from Python scripts.
 
@@ -1530,7 +1572,9 @@ def query_llm(prompt: str, provider: str = "openai", model: str = None,
     """
     # Validate provider
     if provider not in provider_map:
-        raise ValueError(f"Unsupported provider: {provider}. Available: {list(provider_map.keys())}")
+        raise ValueError(
+            f"Unsupported provider: {provider}. Available: {list(provider_map.keys())}"
+        )
 
     # Check API key
     required_env_var = provider_env_vars.get(provider)
@@ -1538,14 +1582,14 @@ def query_llm(prompt: str, provider: str = "openai", model: str = None,
     if required_env_var:
         api_key = os.getenv(required_env_var)
         if not api_key:
-            raise EnvironmentError(f"Missing required environment variable: {required_env_var}")
+            raise OSError(f"Missing required environment variable: {required_env_var}")
 
     # Load prompts for use_prompt functionality
     prompt_jsons = {}
     try:
         for prompt_file in glob.glob(os.path.join(USER_PROMPTS_DIR, "*.json")):
             name = os.path.splitext(os.path.basename(prompt_file))[0]
-            with open(prompt_file, "r", encoding="utf-8") as f:
+            with open(prompt_file, encoding="utf-8") as f:
                 prompt_jsons[name] = json.load(f)
     except Exception as e:
         if not quiet:
@@ -1564,11 +1608,17 @@ def query_llm(prompt: str, provider: str = "openai", model: str = None,
 
             # Add common_base if it exists
             if use_prompt != "common_base" and "common_base" in prompt_jsons:
-                common_base_prompt = prompt_jsons["common_base"].get("system_prompt", "")
+                common_base_prompt = prompt_jsons["common_base"].get(
+                    "system_prompt", ""
+                )
                 if common_base_prompt and final_system_prompt:
-                    final_system_prompt = f"{common_base_prompt}\n\n{final_system_prompt}"
+                    final_system_prompt = (
+                        f"{common_base_prompt}\n\n{final_system_prompt}"
+                    )
         else:
-            raise ValueError(f"Prompt '{use_prompt}' not found. Available: {list(prompt_jsons.keys())}")
+            raise ValueError(
+                f"Prompt '{use_prompt}' not found. Available: {list(prompt_jsons.keys())}"
+            )
 
     # Set default model if none specified
     if not final_model:
@@ -1623,11 +1673,11 @@ def main():
 
     # Gather available prompt choices from the prompts directory
     # Dynamically load all JSON prompt files from the prompts directory
-    PROMPTS_DIR = os.path.join(current_script_path, "prompts")
+    os.path.join(current_script_path, "prompts")
     prompt_jsons = {}
     for prompt_file in glob.glob(os.path.join(USER_PROMPTS_DIR, "*.json")):
         name = os.path.splitext(os.path.basename(prompt_file))[0]
-        with open(prompt_file, "r", encoding="utf-8") as f:
+        with open(prompt_file, encoding="utf-8") as f:
             try:
                 prompt_jsons[name] = json.load(f)
             except Exception as e:
@@ -1807,7 +1857,7 @@ def main():
 ║ ⚡ [bold yellow]Zap[/bold yellow][bold white]GPT[/bold white] [dim]v3.0.0[/dim] 🚀✨ Multi-provider AI automation 🛡️ ║
 ╚══════════════════════════════════════════════════╝[/bold blue]
             """,
-            justify="center"
+            justify="center",
         )
 
         logger.debug(f"Arguments: {args}")
@@ -1845,7 +1895,9 @@ def main():
             # User-provided model takes precedence over prompt's model
             if args.model != "openai/gpt-4.1":  # User explicitly provided a model
                 model = args.model
-                logger.info(f"Using user-specified model '{model}' (overriding prompt default)")
+                logger.info(
+                    f"Using user-specified model '{model}' (overriding prompt default)"
+                )
             else:
                 model = prompt_data.get("model", args.model)
                 logger.info(f"Using model from prompt '{prompt_name}': '{model}'")
@@ -1920,6 +1972,7 @@ def main():
 
     if args.config:
         from .config import show_config_info
+
         show_config_info()
         return
 
