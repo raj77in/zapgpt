@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "zapgpt"
-version = "3.0.0"
+version = "3.1.0"
 description = "A command-line tool for interacting with various LLM providers"
 readme = "README.md"
 license = {file = "LICENSE"}
@@ -53,13 +53,13 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/zapgpt"
-Repository = "https://github.com/yourusername/zapgpt"
-Issues = "https://github.com/yourusername/zapgpt/issues"
-Documentation = "https://github.com/yourusername/zapgpt#readme"
+Homepage = "https://github.com/raj77in/zapgpt"
+Repository = "https://github.com/raj77in/zapgpt"
+Issues = "https://github.com/raj77in/zapgpt/issues"
+Documentation = "https://github.com/raj77in/zapgpt#readme"
 
 [project.scripts]
-zapgpt = "zapgpt.cli:cli"
+zapgpt = "zapgpt.main:main"
 
 [project.optional-dependencies]
 dev = [
