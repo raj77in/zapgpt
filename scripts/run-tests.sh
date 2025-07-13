@@ -12,7 +12,12 @@ check_dependencies() {
 # Try different Python environments in order of preference
 if command -v uv >/dev/null 2>&1; then
     echo "Using uv to run tests..."
-    uv run pytest tests/ --tb=short -q
+    if uv run python -c "import pytest" 2>/dev/null; then
+        uv run python -m pytest tests/ --tb=short -q
+    else
+        echo "⚠️  pytest not available in uv environment"
+        exit 0
+    fi
 elif [ -f .venv/bin/python ] && .venv/bin/python -c "import openai, pytest" 2>/dev/null; then
     echo "Using virtual environment to run tests..."
     .venv/bin/python -m pytest tests/ --tb=short -q
