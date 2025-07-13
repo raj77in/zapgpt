@@ -23,6 +23,8 @@ UV_*
 __pycache__/
 *.py[cod]
 *$py.class
+.venv/
+uv.lock
 
 # C extensions
 *.so
