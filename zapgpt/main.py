@@ -1917,6 +1917,7 @@ def main():
     # Handle commands that don't require API keys first
     if args.config:
         from .config import show_config_info
+
         show_config_info()
         return
 

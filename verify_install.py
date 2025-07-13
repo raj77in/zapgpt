@@ -32,7 +32,10 @@ def main():
         ([sys.executable, "-m", "zapgpt", "--help"], "CLI help command"),
         ([sys.executable, "-m", "zapgpt", "--config"], "CLI config command"),
         ([sys.executable, "-m", "zapgpt", "--list-prompt"], "CLI list-prompt command"),
-        ([sys.executable, "-m", "zapgpt", "--show-prompt", "coding"], "CLI show-prompt command"),
+        (
+            [sys.executable, "-m", "zapgpt", "--show-prompt", "coding"],
+            "CLI show-prompt command",
+        ),
     ]
 
     for cmd, description in commands_to_test:

@@ -123,9 +123,21 @@ def check_cli_functionality():
     commands_to_test = [
         ([sys.executable, "-m", "zapgpt", "--help"], "CLI help command", True),
         ([sys.executable, "-m", "zapgpt", "--config"], "CLI config command", True),
-        ([sys.executable, "-m", "zapgpt", "--list-prompt"], "CLI list-prompt command", True),
-        ([sys.executable, "-m", "zapgpt", "--show-prompt", "coding"], "CLI show-prompt command", True),
-        ([sys.executable, "-m", "zapgpt", "--version"], "CLI version command", False),  # May fail, not critical
+        (
+            [sys.executable, "-m", "zapgpt", "--list-prompt"],
+            "CLI list-prompt command",
+            True,
+        ),
+        (
+            [sys.executable, "-m", "zapgpt", "--show-prompt", "coding"],
+            "CLI show-prompt command",
+            True,
+        ),
+        (
+            [sys.executable, "-m", "zapgpt", "--version"],
+            "CLI version command",
+            False,
+        ),  # May fail, not critical
     ]
 
     all_critical_passed = True
@@ -146,12 +158,16 @@ def check_cli_functionality():
                         print_info(f"Version output: {result.stdout.strip()}")
                 else:
                     if is_critical:
-                        print_error(f"{description} failed with return code {result.returncode}")
+                        print_error(
+                            f"{description} failed with return code {result.returncode}"
+                        )
                         if result.stderr:
                             print_error(f"Error: {result.stderr.strip()[:200]}")
                         all_critical_passed = False
                     else:
-                        print_warning(f"{description} returned non-zero exit code (may be expected)")
+                        print_warning(
+                            f"{description} returned non-zero exit code (may be expected)"
+                        )
 
             except subprocess.TimeoutExpired:
                 if is_critical:
