@@ -1670,11 +1670,28 @@ def main():
     Main entrypoint for the CLI application.
     Parses arguments, dispatches commands, and manages logging.
     """
+    # Fix Windows encoding issues with Unicode characters
+    import sys
+
+    if sys.platform == "win32":
+        # Set environment variables for Windows encoding
+        os.environ["PYTHONIOENCODING"] = "utf-8"
+        os.environ["PYTHONUTF8"] = "1"
+
+        # Try to reconfigure stdout/stderr to UTF-8 (Python 3.7+)
+        try:
+            if hasattr(sys.stdout, "reconfigure"):
+                sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+            if hasattr(sys.stderr, "reconfigure"):
+                sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, OSError):
+            # Fallback for older Python versions or if reconfigure fails
+            pass
+
     logger.info("Starting zapgpt CLI main entry point")
 
     # Gather available prompt choices from the prompts directory
     # Dynamically load all JSON prompt files from the prompts directory
-    os.path.join(current_script_path, "prompts")
     prompt_jsons = {}
     for prompt_file in glob.glob(os.path.join(USER_PROMPTS_DIR, "*.json")):
         name = os.path.splitext(os.path.basename(prompt_file))[0]
@@ -1688,7 +1705,7 @@ def main():
 
     # Setup command-line argument parsing
     parser = ArgumentParser(
-        description="💬 GPT CLI Tracker: Ask OpenAI models, track usage and cost.",
+        description="ZapGPT CLI: Ask LLM models, track usage and cost.",
         formatter_class=RichHelpFormatter,
         epilog=epilog,
     )
