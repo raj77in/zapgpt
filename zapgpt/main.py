@@ -720,14 +720,19 @@ class BaseLLMClient:
             with open(self.output, "w") as f:
                 f.writelines(reply)
         else:
-            print("\n--- RESPONSE ---\n")
-            print(self.highlight_code(reply, lang="markdown"))
-            print("\n--- USAGE ---")
-            print(f"Chat ID: {response.id}")
-            print(f"Prompt tokens: {self.prompt_tokens}")
-            print(f"Completion tokens: {completion_tokens}")
-            print(f"Total tokens: {total_tokens}")
-            print(f"Estimated cost: ${cost:.5f}")
+            # In quiet mode, show only the raw response
+            if output and output.quiet_mode:
+                print(self.highlight_code(reply, lang="markdown"))
+            else:
+                # Normal mode: show headers and usage info
+                print("\n--- RESPONSE ---\n")
+                print(self.highlight_code(reply, lang="markdown"))
+                print("\n--- USAGE ---")
+                print(f"Chat ID: {response.id}")
+                print(f"Prompt tokens: {self.prompt_tokens}")
+                print(f"Completion tokens: {completion_tokens}")
+                print(f"Total tokens: {total_tokens}")
+                print(f"Estimated cost: ${cost:.5f}")
 
         self.record_usage(
             model=self.model,
@@ -1482,13 +1487,18 @@ class GithubClient(BaseLLMClient):
             with open(self.output, "w") as f:
                 f.writelines(reply)
         else:
-            print("\n--- RESPONSE ---\n")
-            print(self.highlight_code(reply, lang="markdown"))
-            print("\n--- USAGE ---")
-            print(f"Prompt tokens: {self.prompt_tokens}")
-            print(f"Completion tokens: {completion_tokens}")
-            print(f"Total tokens: {total_tokens}")
-            print(f"Estimated cost: ${cost:.5f}")
+            # In quiet mode, show only the raw response
+            if output and output.quiet_mode:
+                print(self.highlight_code(reply, lang="markdown"))
+            else:
+                # Normal mode: show headers and usage info
+                print("\n--- RESPONSE ---\n")
+                print(self.highlight_code(reply, lang="markdown"))
+                print("\n--- USAGE ---")
+                print(f"Prompt tokens: {self.prompt_tokens}")
+                print(f"Completion tokens: {completion_tokens}")
+                print(f"Total tokens: {total_tokens}")
+                print(f"Estimated cost: ${cost:.5f}")
 
         self.record_usage(
             model=self.model,
@@ -1688,8 +1698,6 @@ def main():
             # Fallback for older Python versions or if reconfigure fails
             pass
 
-    logger.info("Starting zapgpt CLI main entry point")
-
     # Gather available prompt choices from the prompts directory
     # Dynamically load all JSON prompt files from the prompts directory
     prompt_jsons = {}
@@ -1828,6 +1836,16 @@ def main():
 
     args = parser.parse_args()
 
+    # Handle quiet mode FIRST - suppress all output except LLM response
+    if args.quiet:
+        logger.setLevel(logging.CRITICAL)  # Only show critical errors
+
+    # Initialize global output handler
+    global output
+    output = OutputHandler(quiet_mode=args.quiet)
+
+    logger.info("Starting zapgpt CLI main entry point")
+
     # Handle prompt listing early and exit
     if args.list_prompt:
         # User-facing output: show all prompt names
@@ -1842,15 +1860,8 @@ def main():
 
     model = args.model
 
-    # Initialize global output handler
-    global output
-    output = OutputHandler(quiet_mode=args.quiet)
-
-    # Handle quiet mode - suppress all output except LLM response
-    if args.quiet:
-        logger.setLevel(logging.CRITICAL)  # Only show critical errors
-    else:
-        # Print zapgpt logo/banner (user-facing, not logged)
+    # Print zapgpt logo/banner (user-facing, not logged) - only if not quiet
+    if not args.quiet:
         console.print(
             """
 [bold yellow]
