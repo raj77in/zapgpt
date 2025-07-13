@@ -48,6 +48,7 @@ from argparse import ArgumentParser, ArgumentTypeError  # For CLI parsing
 from datetime import datetime  # For timestamps
 from pathlib import Path  # For path manipulations
 from textwrap import dedent  # For help/epilog formatting
+from typing import Union  # For type hints
 
 # ===============================
 # Third-Party Imports
@@ -441,7 +442,7 @@ def get_filenames_without_extension(folder_path):
 #     return matches[0]
 
 
-def match_abbreviation(options: dict | list[str]):
+def match_abbreviation(options: Union[dict, list[str]]):
     """
     Returns a function for argparse `type=` that matches partial input to full option key.
     Accepts either a list of strings or dict keys.
