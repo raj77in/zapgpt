@@ -73,7 +73,7 @@ def main():
                     try:
                         safe_print(f"   Error: {error_msg}...")
                     except UnicodeEncodeError:
-                        safe_print(f"   Error: [Unicode encoding error in stderr]...")
+                        safe_print("   Error: [Unicode encoding error in stderr]...")
                 return 1
         except Exception as e:
             safe_print(f"❌ {description} failed: {e}")
