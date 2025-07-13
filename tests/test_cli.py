@@ -5,6 +5,7 @@ Test suite for ZapGPT CLI functionality
 
 import os
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -21,7 +22,7 @@ class TestCLIBasics:
     def test_cli_help(self):
         """Test that CLI help works"""
         result = subprocess.run(
-            ["python", "-m", "zapgpt", "--help"],
+            [sys.executable, "-m", "zapgpt", "--help"],
             capture_output=True,
             text=True,
             cwd=PROJECT_DIR,
@@ -34,7 +35,7 @@ class TestCLIBasics:
     def test_cli_version_info(self):
         """Test that CLI shows version information"""
         result = subprocess.run(
-            ["python", "-m", "zapgpt", "--help"],
+            [sys.executable, "-m", "zapgpt", "--help"],
             capture_output=True,
             text=True,
             cwd=PROJECT_DIR,
@@ -51,7 +52,7 @@ class TestCLIFlags:
     def test_quiet_flag(self):
         """Test --quiet flag is available"""
         result = subprocess.run(
-            ["python", "-m", "zapgpt", "--help"],
+            [sys.executable, "-m", "zapgpt", "--help"],
             capture_output=True,
             text=True,
             cwd=PROJECT_DIR,
@@ -63,7 +64,7 @@ class TestCLIFlags:
     def test_file_flag(self):
         """Test --file flag is available"""
         result = subprocess.run(
-            ["python", "-m", "zapgpt", "--help"],
+            [sys.executable, "-m", "zapgpt", "--help"],
             capture_output=True,
             text=True,
             cwd=PROJECT_DIR,
@@ -75,7 +76,7 @@ class TestCLIFlags:
     def test_provider_flag(self):
         """Test --provider flag is available"""
         result = subprocess.run(
-            ["python", "-m", "zapgpt", "--help"],
+            [sys.executable, "-m", "zapgpt", "--help"],
             capture_output=True,
             text=True,
             cwd=PROJECT_DIR,
@@ -87,7 +88,7 @@ class TestCLIFlags:
     def test_model_flag(self):
         """Test --model flag is available"""
         result = subprocess.run(
-            ["python", "-m", "zapgpt", "--help"],
+            [sys.executable, "-m", "zapgpt", "--help"],
             capture_output=True,
             text=True,
             cwd=PROJECT_DIR,
@@ -117,7 +118,7 @@ class TestCLIFileInput:
             # Test file input (will fail at API call but structure should work)
             result = subprocess.run(
                 [
-                    "python",
+                    sys.executable,
                     "-m",
                     "zapgpt",
                     "--file",
@@ -151,7 +152,7 @@ class TestCLIPrompts:
     def test_list_prompts(self):
         """Test --list-prompt functionality"""
         result = subprocess.run(
-            ["python", "-m", "zapgpt", "--list-prompt"],
+            [sys.executable, "-m", "zapgpt", "--list-prompt"],
             capture_output=True,
             text=True,
             cwd=PROJECT_DIR,
@@ -164,7 +165,7 @@ class TestCLIPrompts:
     def test_show_prompt_help(self):
         """Test --show-prompt flag exists"""
         result = subprocess.run(
-            ["python", "-m", "zapgpt", "--help"],
+            [sys.executable, "-m", "zapgpt", "--help"],
             capture_output=True,
             text=True,
             cwd=PROJECT_DIR,
@@ -176,7 +177,7 @@ class TestCLIPrompts:
     def test_use_prompt_help(self):
         """Test --use-prompt flag exists"""
         result = subprocess.run(
-            ["python", "-m", "zapgpt", "--help"],
+            [sys.executable, "-m", "zapgpt", "--help"],
             capture_output=True,
             text=True,
             cwd=PROJECT_DIR,
@@ -192,7 +193,7 @@ class TestCLIConfiguration:
     def test_config_command(self):
         """Test --config command works"""
         result = subprocess.run(
-            ["python", "-m", "zapgpt", "--config", "--provider", "openai"],
+            [sys.executable, "-m", "zapgpt", "--config", "--provider", "openai"],
             capture_output=True,
             text=True,
             cwd=PROJECT_DIR,
@@ -210,7 +211,7 @@ class TestCLIProviders:
     def test_provider_options_in_help(self):
         """Test that provider options are shown in help"""
         result = subprocess.run(
-            ["python", "-m", "zapgpt", "--help"],
+            [sys.executable, "-m", "zapgpt", "--help"],
             capture_output=True,
             text=True,
             cwd=PROJECT_DIR,

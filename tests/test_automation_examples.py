@@ -5,6 +5,7 @@ Test suite for ZapGPT automation examples from README
 
 import os
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -190,7 +191,7 @@ class TestCLIAutomationExamples:
             # Test quiet mode structure
             result = subprocess.run(
                 [
-                    "python",
+                    sys.executable,
                     "-m",
                     "zapgpt",
                     "--quiet",
@@ -232,7 +233,15 @@ class TestCLIAutomationExamples:
             # Test batch processing structure
             for temp_file in temp_files:
                 result = subprocess.run(
-                    ["python", "-m", "zapgpt", "-q", "-f", temp_file, "Summarize"],
+                    [
+                        sys.executable,
+                        "-m",
+                        "zapgpt",
+                        "-q",
+                        "-f",
+                        temp_file,
+                        "Summarize",
+                    ],
                     capture_output=True,
                     text=True,
                     cwd=PROJECT_DIR,

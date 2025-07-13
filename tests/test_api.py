@@ -5,6 +5,7 @@ Test suite for ZapGPT programmatic API
 
 import os
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -137,18 +138,18 @@ class TestProviderMapping:
         from zapgpt.main import provider_env_vars, provider_map
 
         for provider in provider_map.keys():
-            assert provider in provider_env_vars, (
-                f"Provider {provider} missing environment variable mapping"
-            )
+            assert (
+                provider in provider_env_vars
+            ), f"Provider {provider} missing environment variable mapping"
 
     def test_provider_classes_exist(self):
         """Test that all provider classes are defined"""
         from zapgpt.main import provider_map
 
         for provider, client_class in provider_map.items():
-            assert callable(client_class), (
-                f"Provider {provider} class {client_class} is not callable"
-            )
+            assert callable(
+                client_class
+            ), f"Provider {provider} class {client_class} is not callable"
 
 
 class TestCLIIntegration:
@@ -157,7 +158,7 @@ class TestCLIIntegration:
     def test_quiet_flag_exists(self):
         """Test that --quiet flag is available in CLI"""
         result = subprocess.run(
-            ["python", "-m", "zapgpt", "--help"],
+            [sys.executable, "-m", "zapgpt", "--help"],
             capture_output=True,
             text=True,
             cwd=PROJECT_DIR,
@@ -169,7 +170,7 @@ class TestCLIIntegration:
     def test_file_flag_exists(self):
         """Test that --file flag is available in CLI"""
         result = subprocess.run(
-            ["python", "-m", "zapgpt", "--help"],
+            [sys.executable, "-m", "zapgpt", "--help"],
             capture_output=True,
             text=True,
             cwd=PROJECT_DIR,
@@ -181,7 +182,7 @@ class TestCLIIntegration:
     def test_provider_flag_exists(self):
         """Test that --provider flag is available in CLI"""
         result = subprocess.run(
-            ["python", "-m", "zapgpt", "--help"],
+            [sys.executable, "-m", "zapgpt", "--help"],
             capture_output=True,
             text=True,
             cwd=PROJECT_DIR,

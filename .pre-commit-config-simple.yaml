@@ -1,0 +1,47 @@
+# Recommended pre-commit hooks for daily development
+# Fast, reliable checks that won't slow you down
+# Copy this to .pre-commit-config.yaml to use as default
+
+repos:
+  # Basic file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: mixed-line-ending
+        args: ['--fix=lf']
+
+  # Fast Python formatting and linting
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.4
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+
+  # Local hooks
+  - repo: local
+    hooks:
+      # Quick verification
+      - id: verify-install
+        name: Verify installation
+        entry: ./scripts/run-verify.sh
+        language: system
+        pass_filenames: false
+        description: Verify ZapGPT installation
+
+      # Optional: Quick test (uncomment to enable)
+      # - id: quick-test
+      #   name: Quick test
+      #   entry: ./scripts/run-quick-test.sh
+      #   language: system
+      #   pass_filenames: false
+      #   description: Run one quick test
+
+# Settings
+fail_fast: true  # Stop on first failure for faster feedback
+minimum_pre_commit_version: "3.0.0"

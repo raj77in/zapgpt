@@ -52,7 +52,8 @@ def temp_log_file():
 def temp_python_file():
     """Create a temporary Python file for testing"""
     with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".py") as f:
-        f.write("""
+        f.write(
+            """
 # Sample Python code for testing
 import os
 
@@ -62,7 +63,8 @@ def example_function():
 
 if __name__ == "__main__":
     example_function()
-        """)
+        """
+        )
         temp_path = f.name
 
     yield temp_path

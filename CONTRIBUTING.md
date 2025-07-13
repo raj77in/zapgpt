@@ -17,7 +17,7 @@ Thank you for your interest in contributing to ZapGPT! This document provides gu
    # With uv (recommended)
    uv sync
    uv run zapgpt --help
-   
+
    # Or with pip
    python -m venv venv
    source venv/bin/activate  # On Windows: venv\Scripts\activate
@@ -82,7 +82,7 @@ docs(readme): update installation instructions
            super().__init__(model=model, **kwargs)
            self.api_key = api_key
            # Provider-specific setup
-       
+
        def send_request(self, prompt: str) -> str:
            # Implement API call
            pass
@@ -94,7 +94,7 @@ docs(readme): update installation instructions
        # ... existing providers
        "newprovider": NewProviderClient,
    }
-   
+
    provider_env_vars = {
        # ... existing vars
        "newprovider": "NEWPROVIDER_API_KEY",
@@ -134,7 +134,7 @@ Brief description of the bug
 3. Actual: ...
 
 **Environment**
-- OS: 
+- OS:
 - Python version:
 - ZapGPT version:
 - Provider used:

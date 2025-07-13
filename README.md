@@ -58,6 +58,9 @@ git clone https://github.com/yourusername/zapgpt.git
 cd zapgpt
 uv sync
 uv run zapgpt "test"
+
+# Optional: Set up pre-commit hooks for code quality
+./setup-pre-commit.sh
 ```
 
 **With pip:**
@@ -223,7 +226,7 @@ print(response)
 
 # With different provider
 response = query_llm(
-    "Explain quantum computing", 
+    "Explain quantum computing",
     provider="openrouter",
     model="anthropic/claude-3.5-sonnet"
 )
@@ -294,7 +297,7 @@ from zapgpt import query_llm
 def analyze_nmap_scan(target):
     # Run nmap scan
     result = subprocess.run(['nmap', '-sV', target], capture_output=True, text=True)
-    
+
     # Analyze with LLM
     analysis = query_llm(
         f"Analyze this nmap scan: {result.stdout}",
@@ -314,13 +317,13 @@ from zapgpt import query_llm
 def monitor_logs(log_file):
     with open(log_file, 'r') as f:
         logs = f.read()
-    
+
     alert = query_llm(
         f"Detect suspicious activity: {logs}",
         provider="openai",
         quiet=True
     )
-    
+
     if "suspicious" in alert.lower():
         print(f"ALERT: {alert}")
         return True
