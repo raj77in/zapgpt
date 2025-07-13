@@ -7,9 +7,24 @@ import subprocess
 import sys
 
 
+def safe_print(text):
+    """Print text with fallback for encoding issues"""
+    try:
+        print(text)
+    except UnicodeEncodeError:
+        # Fallback to ASCII-safe version
+        fallback = (
+            text.replace("🔍", "[INFO]")
+            .replace("✅", "[OK]")
+            .replace("❌", "[FAIL]")
+            .replace("🎉", "[SUCCESS]")
+        )
+        print(fallback)
+
+
 def main():
     """Verify ZapGPT installation"""
-    print("🔍 Verifying ZapGPT installation...")
+    safe_print("🔍 Verifying ZapGPT installation...")
 
     # Test import
     try:
@@ -22,9 +37,9 @@ def main():
         # Check if zapgpt has version info
         if hasattr(zapgpt, "__version__"):
             pass  # Version available
-        print("✅ ZapGPT imports successfully")
+        safe_print("✅ ZapGPT imports successfully")
     except ImportError as e:
-        print(f"❌ Import failed: {e}")
+        safe_print(f"❌ Import failed: {e}")
         return 1
 
     # Test all CLI commands that should work without API keys
@@ -44,20 +59,27 @@ def main():
                 cmd,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=10,
             )
             if result.returncode == 0:
-                print(f"✅ {description} works")
+                safe_print(f"✅ {description} works")
             else:
-                print(f"❌ {description} failed with code {result.returncode}")
+                safe_print(f"❌ {description} failed with code {result.returncode}")
                 if result.stderr:
-                    print(f"   Error: {result.stderr.strip()[:100]}...")
+                    # Safely handle Unicode in error messages
+                    error_msg = result.stderr.strip()[:100]
+                    try:
+                        safe_print(f"   Error: {error_msg}...")
+                    except UnicodeEncodeError:
+                        safe_print(f"   Error: [Unicode encoding error in stderr]...")
                 return 1
         except Exception as e:
-            print(f"❌ {description} failed: {e}")
+            safe_print(f"❌ {description} failed: {e}")
             return 1
 
-    print("🎉 ZapGPT installation verified successfully!")
+    safe_print("🎉 ZapGPT installation verified successfully!")
     return 0
 
 
