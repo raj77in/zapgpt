@@ -13,6 +13,9 @@ import pytest
 os.environ["OPENAI_API_KEY"] = "dummy_key_for_testing"
 os.environ["OPENROUTER_KEY"] = "dummy_key_for_testing"
 os.environ["TOGETHER_API_KEY"] = "dummy_key_for_testing"
+os.environ["REPLICATE_API_TOKEN"] = "dummy_key_for_testing"
+os.environ["DEEPINFRA_API_TOKEN"] = "dummy_key_for_testing"
+os.environ["GITHUB_KEY"] = "dummy_key_for_testing"
 
 
 @pytest.fixture

@@ -6,9 +6,14 @@ Test suite for ZapGPT programmatic API
 import os
 import subprocess
 import tempfile
+from pathlib import Path
 
 import pytest
 from openai import AuthenticationError
+
+# Test data directory
+TEST_DIR = Path(__file__).parent
+PROJECT_DIR = TEST_DIR.parent
 
 # Set dummy API key for testing
 os.environ["OPENAI_API_KEY"] = "dummy_key_for_testing"
@@ -155,7 +160,7 @@ class TestCLIIntegration:
             ["python", "-m", "zapgpt", "--help"],
             capture_output=True,
             text=True,
-            cwd="/mnt/Dropbox/personal/github/zapgpt",
+            cwd=PROJECT_DIR,
         )
 
         assert result.returncode == 0
@@ -167,7 +172,7 @@ class TestCLIIntegration:
             ["python", "-m", "zapgpt", "--help"],
             capture_output=True,
             text=True,
-            cwd="/mnt/Dropbox/personal/github/zapgpt",
+            cwd=PROJECT_DIR,
         )
 
         assert result.returncode == 0
@@ -179,7 +184,7 @@ class TestCLIIntegration:
             ["python", "-m", "zapgpt", "--help"],
             capture_output=True,
             text=True,
-            cwd="/mnt/Dropbox/personal/github/zapgpt",
+            cwd=PROJECT_DIR,
         )
 
         assert result.returncode == 0
