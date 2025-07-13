@@ -20,6 +20,20 @@ PROJECT_DIR = TEST_DIR.parent
 os.environ["OPENAI_API_KEY"] = "dummy_key_for_testing"
 
 
+def run_zapgpt_command(args, **kwargs):
+    """Helper function to run zapgpt commands with proper encoding"""
+    cmd = [sys.executable, "-m", "zapgpt"] + args
+    defaults = {
+        "capture_output": True,
+        "text": True,
+        "encoding": "utf-8",
+        "errors": "replace",
+        "cwd": PROJECT_DIR,
+    }
+    defaults.update(kwargs)
+    return subprocess.run(cmd, **defaults)
+
+
 class TestQueryLLMAPI:
     """Test the query_llm programmatic API"""
 
@@ -157,39 +171,27 @@ class TestCLIIntegration:
 
     def test_quiet_flag_exists(self):
         """Test that --quiet flag is available in CLI"""
-        result = subprocess.run(
-            [sys.executable, "-m", "zapgpt", "--help"],
-            capture_output=True,
-            text=True,
-            cwd=PROJECT_DIR,
-        )
+        result = run_zapgpt_command(["--help"])
 
         assert result.returncode == 0
-        assert "--quiet" in result.stdout or "-q" in result.stdout
+        output = result.stdout or result.stderr or ""
+        assert "--quiet" in output or "-q" in output
 
     def test_file_flag_exists(self):
         """Test that --file flag is available in CLI"""
-        result = subprocess.run(
-            [sys.executable, "-m", "zapgpt", "--help"],
-            capture_output=True,
-            text=True,
-            cwd=PROJECT_DIR,
-        )
+        result = run_zapgpt_command(["--help"])
 
         assert result.returncode == 0
-        assert "--file" in result.stdout or "-f" in result.stdout
+        output = result.stdout or result.stderr or ""
+        assert "--file" in output or "-f" in output
 
     def test_provider_flag_exists(self):
         """Test that --provider flag is available in CLI"""
-        result = subprocess.run(
-            [sys.executable, "-m", "zapgpt", "--help"],
-            capture_output=True,
-            text=True,
-            cwd=PROJECT_DIR,
-        )
+        result = run_zapgpt_command(["--help"])
 
         assert result.returncode == 0
-        assert "--provider" in result.stdout or "-p" in result.stdout
+        output = result.stdout or result.stderr or ""
+        assert "--provider" in output or "-p" in output
 
 
 if __name__ == "__main__":

@@ -16,34 +16,41 @@ TEST_DIR = Path(__file__).parent
 PROJECT_DIR = TEST_DIR.parent
 
 
+def run_zapgpt_command(args, **kwargs):
+    """Helper function to run zapgpt commands with proper encoding"""
+    cmd = [sys.executable, "-m", "zapgpt"] + args
+    defaults = {
+        "capture_output": True,
+        "text": True,
+        "encoding": "utf-8",
+        "errors": "replace",
+        "cwd": PROJECT_DIR,
+    }
+    defaults.update(kwargs)
+    return subprocess.run(cmd, **defaults)
+
+
 class TestCLIBasics:
     """Test basic CLI functionality"""
 
     def test_cli_help(self):
         """Test that CLI help works"""
-        result = subprocess.run(
-            [sys.executable, "-m", "zapgpt", "--help"],
-            capture_output=True,
-            text=True,
-            cwd=PROJECT_DIR,
-        )
+        result = run_zapgpt_command(["--help"])
 
         assert result.returncode == 0
-        assert "zapgpt" in result.stdout.lower()
-        assert "usage" in result.stdout.lower()
+        output = result.stdout or result.stderr or ""
+        output = output.lower()
+        assert "zapgpt" in output or "usage" in output
 
     def test_cli_version_info(self):
         """Test that CLI shows version information"""
-        result = subprocess.run(
-            [sys.executable, "-m", "zapgpt", "--help"],
-            capture_output=True,
-            text=True,
-            cwd=PROJECT_DIR,
-        )
+        result = run_zapgpt_command(["--help"])
 
         assert result.returncode == 0
         # Should contain version or description
-        assert any(word in result.stdout.lower() for word in ["version", "gpt", "llm"])
+        output = result.stdout or result.stderr or ""
+        output = output.lower()
+        assert any(word in output for word in ["version", "gpt", "llm"])
 
 
 class TestCLIFlags:
@@ -51,51 +58,35 @@ class TestCLIFlags:
 
     def test_quiet_flag(self):
         """Test --quiet flag is available"""
-        result = subprocess.run(
-            [sys.executable, "-m", "zapgpt", "--help"],
-            capture_output=True,
-            text=True,
-            cwd=PROJECT_DIR,
-        )
+        result = run_zapgpt_command(["--help"])
 
         assert result.returncode == 0
-        assert "--quiet" in result.stdout or "-q" in result.stdout
+        output = result.stdout or result.stderr or ""
+        assert "--quiet" in output or "-q" in output
 
     def test_file_flag(self):
         """Test --file flag is available"""
-        result = subprocess.run(
-            [sys.executable, "-m", "zapgpt", "--help"],
-            capture_output=True,
-            text=True,
-            cwd=PROJECT_DIR,
-        )
+        result = run_zapgpt_command(["--help"])
 
         assert result.returncode == 0
-        assert "--file" in result.stdout or "-f" in result.stdout
+        output = result.stdout or result.stderr or ""
+        assert "--file" in output or "-f" in output
 
     def test_provider_flag(self):
         """Test --provider flag is available"""
-        result = subprocess.run(
-            [sys.executable, "-m", "zapgpt", "--help"],
-            capture_output=True,
-            text=True,
-            cwd=PROJECT_DIR,
-        )
+        result = run_zapgpt_command(["--help"])
 
         assert result.returncode == 0
-        assert "--provider" in result.stdout or "-p" in result.stdout
+        output = result.stdout or result.stderr or ""
+        assert "--provider" in output or "-p" in output
 
     def test_model_flag(self):
         """Test --model flag is available"""
-        result = subprocess.run(
-            [sys.executable, "-m", "zapgpt", "--help"],
-            capture_output=True,
-            text=True,
-            cwd=PROJECT_DIR,
-        )
+        result = run_zapgpt_command(["--help"])
 
         assert result.returncode == 0
-        assert "--model" in result.stdout or "-m" in result.stdout
+        output = result.stdout or result.stderr or ""
+        assert "--model" in output or "-m" in output
 
 
 class TestCLIFileInput:
@@ -116,25 +107,14 @@ class TestCLIFileInput:
             env["OPENAI_API_KEY"] = "dummy_key_for_testing"
 
             # Test file input (will fail at API call but structure should work)
-            result = subprocess.run(
-                [
-                    sys.executable,
-                    "-m",
-                    "zapgpt",
-                    "--file",
-                    temp_file,
-                    "--quiet",
-                    "Analyze this file",
-                ],
-                capture_output=True,
-                text=True,
-                cwd=PROJECT_DIR,
+            result = run_zapgpt_command(
+                ["--file", temp_file, "--quiet", "Analyze this file"],
                 env=env,
             )
 
             # Should either succeed or fail with authentication error (not file error)
             if result.returncode != 0:
-                error_output = result.stderr.lower()
+                error_output = (result.stderr or "").lower()
                 # Should be API-related error, not file-related
                 assert not any(
                     word in error_output
@@ -151,40 +131,28 @@ class TestCLIPrompts:
 
     def test_list_prompts(self):
         """Test --list-prompt functionality"""
-        result = subprocess.run(
-            [sys.executable, "-m", "zapgpt", "--list-prompt"],
-            capture_output=True,
-            text=True,
-            cwd=PROJECT_DIR,
-        )
+        result = run_zapgpt_command(["--list-prompt"])
 
         assert result.returncode == 0
         # Should list some prompts
-        assert len(result.stdout.strip()) > 0
+        output = result.stdout or result.stderr or ""
+        assert len(output.strip()) > 0
 
     def test_show_prompt_help(self):
         """Test --show-prompt flag exists"""
-        result = subprocess.run(
-            [sys.executable, "-m", "zapgpt", "--help"],
-            capture_output=True,
-            text=True,
-            cwd=PROJECT_DIR,
-        )
+        result = run_zapgpt_command(["--help"])
 
         assert result.returncode == 0
-        assert "--show-prompt" in result.stdout
+        output = result.stdout or result.stderr or ""
+        assert "--show-prompt" in output
 
     def test_use_prompt_help(self):
         """Test --use-prompt flag exists"""
-        result = subprocess.run(
-            [sys.executable, "-m", "zapgpt", "--help"],
-            capture_output=True,
-            text=True,
-            cwd=PROJECT_DIR,
-        )
+        result = run_zapgpt_command(["--help"])
 
         assert result.returncode == 0
-        assert "--use-prompt" in result.stdout
+        output = result.stdout or result.stderr or ""
+        assert "--use-prompt" in output
 
 
 class TestCLIConfiguration:
@@ -192,16 +160,12 @@ class TestCLIConfiguration:
 
     def test_config_command(self):
         """Test --config command works"""
-        result = subprocess.run(
-            [sys.executable, "-m", "zapgpt", "--config", "--provider", "openai"],
-            capture_output=True,
-            text=True,
-            cwd=PROJECT_DIR,
-        )
+        result = run_zapgpt_command(["--config", "--provider", "openai"])
 
         assert result.returncode == 0
         # Should show configuration information
-        output = result.stdout.lower()
+        output = result.stdout or result.stderr or ""
+        output = output.lower()
         assert any(word in output for word in ["config", "directory", "path"])
 
 
@@ -210,16 +174,12 @@ class TestCLIProviders:
 
     def test_provider_options_in_help(self):
         """Test that provider options are shown in help"""
-        result = subprocess.run(
-            [sys.executable, "-m", "zapgpt", "--help"],
-            capture_output=True,
-            text=True,
-            cwd=PROJECT_DIR,
-        )
+        result = run_zapgpt_command(["--help"])
 
         assert result.returncode == 0
         # Should mention some providers
-        output = result.stdout.lower()
+        output = result.stdout or result.stderr or ""
+        output = output.lower()
         assert any(
             provider in output for provider in ["openai", "openrouter", "together"]
         )

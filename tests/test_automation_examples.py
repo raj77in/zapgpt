@@ -20,6 +20,20 @@ PROJECT_DIR = TEST_DIR.parent
 os.environ["OPENAI_API_KEY"] = "dummy_key_for_testing"
 
 
+def run_zapgpt_command(args, **kwargs):
+    """Helper function to run zapgpt commands with proper encoding"""
+    cmd = [sys.executable, "-m", "zapgpt"] + args
+    defaults = {
+        "capture_output": True,
+        "text": True,
+        "encoding": "utf-8",
+        "errors": "replace",
+        "cwd": PROJECT_DIR,
+    }
+    defaults.update(kwargs)
+    return subprocess.run(cmd, **defaults)
+
+
 class TestPenetrationTestingExamples:
     """Test penetration testing automation examples"""
 
@@ -189,27 +203,17 @@ class TestCLIAutomationExamples:
             env["OPENAI_API_KEY"] = "dummy_key"
 
             # Test quiet mode structure
-            result = subprocess.run(
-                [
-                    sys.executable,
-                    "-m",
-                    "zapgpt",
-                    "--quiet",
-                    "--file",
-                    temp_file,
-                    "Analyze this",
-                ],
-                capture_output=True,
-                text=True,
-                cwd=PROJECT_DIR,
+            result = run_zapgpt_command(
+                ["--quiet", "--file", temp_file, "Analyze this"],
                 env=env,
             )
 
             # Should either succeed or fail with API error (not CLI error)
             if result.returncode != 0:
                 # Should not be a CLI argument error
-                assert "unrecognized arguments" not in result.stderr
-                assert "invalid choice" not in result.stderr
+                stderr = result.stderr or ""
+                assert "unrecognized arguments" not in stderr
+                assert "invalid choice" not in stderr
 
         finally:
             os.unlink(temp_file)
@@ -232,25 +236,15 @@ class TestCLIAutomationExamples:
 
             # Test batch processing structure
             for temp_file in temp_files:
-                result = subprocess.run(
-                    [
-                        sys.executable,
-                        "-m",
-                        "zapgpt",
-                        "-q",
-                        "-f",
-                        temp_file,
-                        "Summarize",
-                    ],
-                    capture_output=True,
-                    text=True,
-                    cwd=PROJECT_DIR,
+                result = run_zapgpt_command(
+                    ["-q", "-f", temp_file, "Summarize"],
                     env=env,
                 )
 
                 # Should not be a CLI structure error
                 if result.returncode != 0:
-                    assert "unrecognized arguments" not in result.stderr
+                    stderr = result.stderr or ""
+                    assert "unrecognized arguments" not in stderr
 
         finally:
             for temp_file in temp_files:
