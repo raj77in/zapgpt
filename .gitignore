@@ -8,8 +8,6 @@ final_test.py
 test_prompts.py
 build_and_upload.py
 
-verify_install.py
-
 # Launch materials (not needed in repository)
 docs/launch-materials/*
 *.md.bak
