@@ -7,16 +7,21 @@ echo "🔧 Setting up pre-commit hooks for ZapGPT..."
 echo ""
 echo "Choose configuration:"
 echo "1) Full (comprehensive checks including tests, type checking, security)"
-echo "2) Simple (fast formatting and basic checks only)"
+echo "2) Simple (fast formatting and basic checks)"
+echo "3) Development (recommended - linting only, no formatting conflicts)"
 echo ""
-read -p "Enter choice (1 or 2, default: 1): " choice
-choice=${choice:-1}
+read -p "Enter choice (1, 2, or 3, default: 3): " choice
+choice=${choice:-3}
 
-if [ "$choice" = "2" ]; then
+if [ "$choice" = "1" ]; then
+    echo "📝 Using full configuration..."
+    # Keep existing .pre-commit-config.yaml
+elif [ "$choice" = "2" ]; then
     echo "📝 Using simplified configuration..."
     cp .pre-commit-config-simple.yaml .pre-commit-config.yaml
 else
-    echo "📝 Using full configuration..."
+    echo "📝 Using development-friendly configuration (recommended)..."
+    cp .pre-commit-config-dev.yaml .pre-commit-config.yaml
 fi
 
 # Check if we're in a git repository
@@ -61,17 +66,9 @@ echo "🎉 Pre-commit hooks setup complete!"
 echo ""
 echo "📋 What happens now:"
 echo "   • Before each commit, the following checks will run automatically:"
-echo "     - Code formatting (ruff format)"
-echo "     - Linting (ruff check)"
-echo "     - Type checking (mypy)"
-echo "     - Security scanning (bandit)"
-echo "     - Tests (pytest)"
-echo "     - Installation verification"
-echo "     - File format checks (trailing whitespace, etc.)"
 echo ""
-echo "💡 Tips:"
-echo "   • To skip hooks temporarily: git commit --no-verify"
-echo "   • To run hooks manually: uv run pre-commit run --all-files"
-echo "   • To update hooks: uv run pre-commit autoupdate"
+echo "📚 Documentation:"
+echo "   - Setup guide: docs/pre-commit-setup.md"
+echo "   - Troubleshooting: docs/TROUBLESHOOTING.md"
 echo ""
-echo "🚀 Happy coding with automatic quality checks!"
+echo "🚀 Happy coding with automated quality checks!"

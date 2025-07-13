@@ -138,18 +138,18 @@ class TestProviderMapping:
         from zapgpt.main import provider_env_vars, provider_map
 
         for provider in provider_map.keys():
-            assert (
-                provider in provider_env_vars
-            ), f"Provider {provider} missing environment variable mapping"
+            assert provider in provider_env_vars, (
+                f"Provider {provider} missing environment variable mapping"
+            )
 
     def test_provider_classes_exist(self):
         """Test that all provider classes are defined"""
         from zapgpt.main import provider_map
 
         for provider, client_class in provider_map.items():
-            assert callable(
-                client_class
-            ), f"Provider {provider} class {client_class} is not callable"
+            assert callable(client_class), (
+                f"Provider {provider} class {client_class} is not callable"
+            )
 
 
 class TestCLIIntegration:
