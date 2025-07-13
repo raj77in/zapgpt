@@ -7,7 +7,7 @@ dev-scripts/
 final_test.py
 test_prompts.py
 build_and_upload.py
-test_*.py
+
 verify_install.py
 
 # Launch materials (not needed in repository)
@@ -26,6 +26,7 @@ __pycache__/
 .venv/
 uv.lock
 .ruff_cache/
+coverage.xml
 
 # C extensions
 *.so
