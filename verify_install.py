@@ -47,7 +47,7 @@ def main():
     # Test configuration
     try:
         result = subprocess.run(
-            [sys.executable, "-m", "zapgpt", "--config"],
+            [sys.executable, "-m", "zapgpt", "--config", "--provider", "openai"],
             capture_output=True,
             text=True,
             timeout=10,

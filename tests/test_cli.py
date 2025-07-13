@@ -192,7 +192,7 @@ class TestCLIConfiguration:
     def test_config_command(self):
         """Test --config command works"""
         result = subprocess.run(
-            ["python", "-m", "zapgpt", "--config"],
+            ["python", "-m", "zapgpt", "--config", "--provider", "openai"],
             capture_output=True,
             text=True,
             cwd=PROJECT_DIR,

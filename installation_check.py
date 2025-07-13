@@ -168,7 +168,7 @@ def check_configuration():
     # Check if config command works
     try:
         result = subprocess.run(
-            [sys.executable, "-m", "zapgpt", "--config"],
+            [sys.executable, "-m", "zapgpt", "--config", "--provider", "openai"],
             capture_output=True,
             text=True,
             timeout=10,
