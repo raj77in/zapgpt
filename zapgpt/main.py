@@ -1914,6 +1914,17 @@ def main():
     if args.use_prompt and prompt_name in prompt_jsons:
         assistant_input = prompt_jsons[prompt_name].get("assistant_input", None)
 
+    # Handle commands that don't require API keys first
+    if args.config:
+        from .config import show_config_info
+        show_config_info()
+        return
+
+    if args.show_prompt:
+        show_complete_prompt(args.show_prompt, args.model)
+        return
+
+    # Now handle commands that need API access
     client_class = provider_map[args.provider]
 
     # Get the correct API key for the selected provider
@@ -1969,16 +1980,6 @@ def main():
 
     if args.total:
         BaseLLMClient.show_total_cost()
-        return
-
-    if args.config:
-        from .config import show_config_info
-
-        show_config_info()
-        return
-
-    if args.show_prompt:
-        show_complete_prompt(args.show_prompt, args.model)
         return
 
     if args.query:

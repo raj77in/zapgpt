@@ -27,34 +27,32 @@ def main():
         print(f"❌ Import failed: {e}")
         return 1
 
-    # Test CLI help
-    try:
-        result = subprocess.run(
-            [sys.executable, "-m", "zapgpt", "--help"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        if result.returncode == 0:
-            print("✅ CLI help command works")
-        else:
-            print(f"❌ CLI help failed with code {result.returncode}")
-            return 1
-    except Exception as e:
-        print(f"❌ CLI test failed: {e}")
-        return 1
+    # Test all CLI commands that should work without API keys
+    commands_to_test = [
+        ([sys.executable, "-m", "zapgpt", "--help"], "CLI help command"),
+        ([sys.executable, "-m", "zapgpt", "--config"], "CLI config command"),
+        ([sys.executable, "-m", "zapgpt", "--list-prompt"], "CLI list-prompt command"),
+        ([sys.executable, "-m", "zapgpt", "--show-prompt", "coding"], "CLI show-prompt command"),
+    ]
 
-    # Test configuration
-    try:
-        result = subprocess.run(
-            [sys.executable, "-m", "zapgpt", "--config", "--provider", "openai"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        print("✅ Configuration command executed")
-    except Exception as e:
-        print(f"⚠️  Configuration test warning: {e}")
+    for cmd, description in commands_to_test:
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if result.returncode == 0:
+                print(f"✅ {description} works")
+            else:
+                print(f"❌ {description} failed with code {result.returncode}")
+                if result.stderr:
+                    print(f"   Error: {result.stderr.strip()[:100]}...")
+                return 1
+        except Exception as e:
+            print(f"❌ {description} failed: {e}")
+            return 1
 
     print("🎉 ZapGPT installation verified successfully!")
     return 0

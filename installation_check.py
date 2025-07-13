@@ -119,39 +119,54 @@ def check_cli_functionality():
     """Check if CLI commands work"""
     print_header("CLI Functionality Check")
 
+    # Test all CLI commands that should work without API keys (matching CI tests)
+    commands_to_test = [
+        ([sys.executable, "-m", "zapgpt", "--help"], "CLI help command", True),
+        ([sys.executable, "-m", "zapgpt", "--config"], "CLI config command", True),
+        ([sys.executable, "-m", "zapgpt", "--list-prompt"], "CLI list-prompt command", True),
+        ([sys.executable, "-m", "zapgpt", "--show-prompt", "coding"], "CLI show-prompt command", True),
+        ([sys.executable, "-m", "zapgpt", "--version"], "CLI version command", False),  # May fail, not critical
+    ]
+
+    all_critical_passed = True
+
     try:
-        # Test help command
-        result = subprocess.run(
-            [sys.executable, "-m", "zapgpt", "--help"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
+        for cmd, description, is_critical in commands_to_test:
+            try:
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
 
-        if result.returncode == 0:
-            print_success("CLI help command works")
-        else:
-            print_error(f"CLI help command failed with return code {result.returncode}")
-            return False
+                if result.returncode == 0:
+                    print_success(f"{description} works")
+                    if "version" in description and result.stdout.strip():
+                        print_info(f"Version output: {result.stdout.strip()}")
+                else:
+                    if is_critical:
+                        print_error(f"{description} failed with return code {result.returncode}")
+                        if result.stderr:
+                            print_error(f"Error: {result.stderr.strip()[:200]}")
+                        all_critical_passed = False
+                    else:
+                        print_warning(f"{description} returned non-zero exit code (may be expected)")
 
-        # Test version command
-        result = subprocess.run(
-            [sys.executable, "-m", "zapgpt", "--version"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
+            except subprocess.TimeoutExpired:
+                if is_critical:
+                    print_error(f"{description} timed out")
+                    all_critical_passed = False
+                else:
+                    print_warning(f"{description} timed out (may be expected)")
+            except Exception as e:
+                if is_critical:
+                    print_error(f"{description} failed: {e}")
+                    all_critical_passed = False
+                else:
+                    print_warning(f"{description} failed: {e}")
 
-        if result.returncode == 0:
-            print_success("CLI version command works")
-            if result.stdout.strip():
-                print_info(f"Version output: {result.stdout.strip()}")
-        else:
-            print_warning(
-                "CLI version command returned non-zero exit code (may be expected)"
-            )
-
-        return True
+        return all_critical_passed
 
     except subprocess.TimeoutExpired:
         print_error("CLI commands timed out")
@@ -204,6 +219,8 @@ def check_configuration():
     else:
         print_warning("No API keys found in environment variables")
         print_info("Set at least one API key to use ZapGPT with real providers")
+
+    return True
 
 
 def check_project_structure():
