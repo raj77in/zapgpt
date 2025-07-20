@@ -1648,7 +1648,7 @@ def query_llm(
     # Send request and return response
     try:
         response = llm_client.send_request(prompt)
-        return response.strip() if response else ""
+        return response
     except Exception as e:
         if not quiet:
             logger.error(f"Error querying {provider}: {e}")
@@ -1883,7 +1883,7 @@ def main():
        ╚█╝
 [/bold yellow]
 [bold blue]╔══════════════════════════════════════════════════╗
-║ ⚡ [bold yellow]Zap[/bold yellow][bold white]GPT[/bold white] [dim]v3.0.0[/dim] 🚀✨ Multi-provider AI automation 🛡️ ║
+║ ⚡ [bold yellow]Zap[/bold yellow][bold white]GPT[/bold white] [dim]v3.1.2[/dim] 🚀✨ Multi-provider AI automation 🛡️ ║
 ╚══════════════════════════════════════════════════╝[/bold blue]
             """,
             justify="center",
