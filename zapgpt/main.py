@@ -1891,7 +1891,7 @@ def main():
        ╚█╝
 [/bold yellow]
 [bold blue]╔══════════════════════════════════════════════════╗
-║ ⚡ [bold yellow]Zap[/bold yellow][bold white]GPT[/bold white] [dim]v3.1.2[/dim] 🚀✨ Multi-provider AI automation 🛡️ ║
+║ ⚡ [bold yellow]Zap[/bold yellow][bold white]GPT[/bold white] [dim]v3.1.3[/dim] 🚀✨ Multi-provider AI automation 🛡️ ║
 ╚══════════════════════════════════════════════════╝[/bold blue]
             """,
             justify="center",
