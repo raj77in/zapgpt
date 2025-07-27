@@ -1138,7 +1138,7 @@ class OpenAIClient(BaseLLMClient):
         super().print_model_pricing_table(self.price, filter=filter)
         print("Note: This could be incorrect as this is data provided with script")
 
-    def generate_image(self, prompt):
+    def generate_image(self, prompt, size):
         """
         Generate an image using the OpenAI image generation API.
         Belongs to: OpenAIClient class.
@@ -1149,7 +1149,7 @@ class OpenAIClient(BaseLLMClient):
             model=self.model,
             prompt=prompt,
             n=1,
-            size="256x256",  # other options: "512x512", "256x256" (DALL·E 2), or "1024x1024" (DALL·E 3)
+            size=size,  # other options: "512x512", "256x256" (DALL·E 2), or "1024x1024" (DALL·E 3)
         )
         image_url = response.data[0].url
         output.info(
@@ -1157,9 +1157,10 @@ class OpenAIClient(BaseLLMClient):
         )
         response = requests.get(image_url)
         if response.status_code == 200:
-            with open("/tmp/t.png", "wb") as f:
-                f.write(response.content)
-            output.success("Image written as /tmp/t.png")
+            if self.output:
+                with open(self.output, "wb") as f:
+                    f.write(response.content)
+            output.success(f"Image written as {self.output}")
         else:
             output.error(f"Failed to download. Status code: {response.status_code}")
 
@@ -1822,6 +1823,13 @@ def main():
         type=str,
         help="Prompt to generate image.",
     )
+    parser.add_argument(
+        "-is",
+        "--image-size",
+        type=str,
+        default="256x256",
+        help="Image Size. Options - 256x256, 512x512, 1024x1024, 1024x1536, 1536x1024 and auto",
+    )
     parser.add_argument("-o", "--output", default=None, help="The output file to use.")
     parser.add_argument(
         "--config",
@@ -1978,7 +1986,10 @@ def main():
     )
 
     if args.image_prompt:
-        llm_client.generate_image(args.image_prompt)
+        if args.provider != "openai":
+            output.error("Only OpenAI is supported for Image generation")
+            return False
+        llm_client.generate_image(args.image_prompt, args.image_size)
         return
 
     if args.list_models:
