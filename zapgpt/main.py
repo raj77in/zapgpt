@@ -1734,6 +1734,12 @@ def main():
         help=f"Specify a prompt type. Options: {', '.join(prompt_choices)}. Default is 'general'.",
     )
     parser.add_argument(
+        "-xai",
+        "--explain-AI",
+        action="store_true",
+        help="Explian the thought process for reaching the response.",
+    )
+    parser.add_argument(
         "-lsp",
         "--list-prompt",
         action="store_true",
@@ -1891,7 +1897,7 @@ def main():
        ╚█╝
 [/bold yellow]
 [bold blue]╔══════════════════════════════════════════════════╗
-║ ⚡ [bold yellow]Zap[/bold yellow][bold white]GPT[/bold white] [dim]v3.1.3[/dim] 🚀✨ Multi-provider AI automation 🛡️ ║
+║ ⚡ [bold yellow]Zap[/bold yellow][bold white]GPT[/bold white] [dim]v3.2[/dim] 🚀✨ Multi-provider AI automation 🛡️ ║
 ╚══════════════════════════════════════════════════╝[/bold blue]
             """,
             justify="center",
@@ -1938,6 +1944,9 @@ def main():
             else:
                 model = prompt_data.get("model", args.model)
                 logger.info(f"Using model from prompt '{prompt_name}': '{model}'")
+
+            if args.explain_AI:
+                system_prompt += "\n\nImportant! Always start with a json of steps and thoughts that you took to get to response, json should have step number and your thought process.\n"
         else:
             logger.error(f"Prompt '{prompt_name}' not found in prompts directory.")
             system_prompt = ""
