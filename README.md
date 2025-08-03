@@ -1,7 +1,10 @@
 # zapgpt
 
+![Intro image](intro.png)
+
 A minimalist CLI tool to chat with LLMs from your terminal. Supports multiple providers including OpenAI, OpenRouter, Together, Replicate, DeepInfra, and GitHub AI.
 
+```plaintext
 ███████╗ █████╗ ██████╗  ██████╗ ██████╗ ████████╗
 ╚══███╔╝██╔══██╗██╔══██╗██╔════╝ ██╔══██╗╚══██╔══╝
   ███╔╝ ███████║██████╔╝██║  ███╗██████╔╝   ██║
@@ -9,10 +12,13 @@ A minimalist CLI tool to chat with LLMs from your terminal. Supports multiple pr
 ███████╗██║  ██║██║     ╚██████╔╝██║        ██║
 ╚══════╝╚═╝  ╚═╝╚═╝      ╚═════╝ ╚═╝        ╚═╝
          GPT on the CLI. Like a boss.
+```
 
 `zapgpt` is a minimalist CLI tool to chat with LLMs from your terminal. No bloated UI, just fast raw GPT magic, straight from the shell. With pre-cooked system prompt for Ethical hacking, code, file attachment and a good default prompt and usage tracking, I hope you find it useful. No extra features or frills. Modify it as you need it with a simple one file script.
 
 Updated to version v2.
+
+## Introduction video
 
 [![Introduction](https://i.ytimg.com/vi/hpiVtj_gSD4/hqdefault.jpg)](https://www.youtube.com/watch?v=hpiVtj_gSD4)
 
@@ -33,6 +39,7 @@ uv tool install zapgpt
 > **Why uv?** `uv` is blazingly fast and handles CLI tools perfectly. It installs zapgpt globally and manages dependencies automatically.
 
 **Don't have uv?** Install it first:
+
 ```bash
 # macOS/Linux
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -53,6 +60,7 @@ uv tool install zapgpt
 ### Option 3: Development Installation
 
 **With uv (recommended):**
+
 ```bash
 git clone https://github.com/yourusername/zapgpt.git
 cd zapgpt
@@ -64,6 +72,7 @@ uv run zapgpt "test"
 ```
 
 **With pip:**
+
 ```bash
 git clone https://github.com/yourusername/zapgpt.git
 cd zapgpt
@@ -94,6 +103,7 @@ ZapGPT only requires the API key for the provider you're using. Set the appropri
 | GitHub | `GITHUB_KEY` | [github.com](https://github.com/settings/tokens) |
 
 **Example:**
+
 ```bash
 # For OpenAI (default provider)
 export OPENAI_API_KEY="your-openai-api-key-here"
@@ -129,11 +139,13 @@ zapgpt  # Starts interactive mode
 ### Development Usage
 
 **With uv:**
+
 ```bash
 uv run zapgpt "Your question here"
 ```
 
 **With Python:**
+
 ```bash
 python -m zapgpt "Your question here"
 # or
@@ -333,8 +345,9 @@ def monitor_logs(log_file):
 monitor_logs('/var/log/auth.log')
 ```
 
-[![Using zapgpt for pentesting on Kali](https://i.ytimg.com/vi/vDTwIsEUheE/hqdefault.jpg)](https://www.youtube.com/watch?v=hpiVtj_gSD4)
+## Usage Video
 
+[![Using zapgpt for pentesting on Kali](https://i.ytimg.com/vi/vDTwIsEUheE/hqdefault.jpg)](https://www.youtube.com/watch?v=hpiVtj_gSD4)
 
 ## 🛠️ Features
 
@@ -347,30 +360,30 @@ monitor_logs('/var/log/auth.log')
 
 ZapGPT stores its configuration and prompts in `~/.config/zapgpt/`:
 
-- **Configuration directory**: `~/.config/zapgpt/`
-- **Prompts directory**: `~/.config/zapgpt/prompts/`
-- **Database file**: `~/.config/zapgpt/gpt_usage.db`
+* **Configuration directory**: `~/.config/zapgpt/`
+* **Prompts directory**: `~/.config/zapgpt/prompts/`
+* **Database file**: `~/.config/zapgpt/gpt_usage.db`
 
 ### Managing Prompts
 
 On first run, zapgpt automatically copies default prompts to your config directory. You can:
 
-- **View config location**: `zapgpt --config`
-- **List available prompts**: `zapgpt --list-prompt`
-- **Use a specific prompt**: `zapgpt --use-prompt coding "Your question"`
-- **Add custom prompts**: Create `.json` files in `~/.config/zapgpt/prompts/`
-- **Modify existing prompts**: Edit the `.json` files in your prompts directory
+* **View config location**: `zapgpt --config`
+* **List available prompts**: `zapgpt --list-prompt`
+* **Use a specific prompt**: `zapgpt --use-prompt coding "Your question"`
+* **Add custom prompts**: Create `.json` files in `~/.config/zapgpt/prompts/`
+* **Modify existing prompts**: Edit the `.json` files in your prompts directory
 
 ### Default Prompts Included
 
-- `coding` - Programming and development assistance
-- `cyber_awareness` - Cybersecurity guidance
-- `vuln_assessment` - Vulnerability assessment help
-- `kalihacking` - Kali Linux and penetration testing
-- `prompting` - Prompt engineering assistance
-- `powershell` - PowerShell scripting help
-- `default` - General purpose prompt
-- `common_base` - Base prompt added to all others
+* `coding` - Programming and development assistance
+* `cyber_awareness` - Cybersecurity guidance
+* `vuln_assessment` - Vulnerability assessment help
+* `kalihacking` - Kali Linux and penetration testing
+* `prompting` - Prompt engineering assistance
+* `powershell` - PowerShell scripting help
+* `default` - General purpose prompt
+* `common_base` - Base prompt added to all others
 
 ### v2 Features
 

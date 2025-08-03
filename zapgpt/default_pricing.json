@@ -1,76 +1,451 @@
 {
     "openai": {
-        "gpt-4.1": {"prompt_tokens": 0.002, "completion_tokens": 0.0005},
-        "gpt-4.1-mini": {"prompt_tokens": 0.0004, "completion_tokens": 0.0001},
-        "gpt-4.1-nano": {"prompt_tokens": 0.0001, "completion_tokens": 2.5e-05},
-        "gpt-4.5-preview": {"prompt_tokens": 0.075, "completion_tokens": 0.0375},
-        "gpt-4o": {"prompt_tokens": 0.0025, "completion_tokens": 0.00125},
-        "gpt-4o-audio-preview": {"prompt_tokens": 0.0025, "completion_tokens": 0.0},
-        "gpt-4o-realtime-preview": {"prompt_tokens": 0.005, "completion_tokens": 0.0025},
-        "gpt-4o-mini": {"prompt_tokens": 0.00015, "completion_tokens": 7.5e-05},
-        "gpt-4o-mini-audio-preview": {"prompt_tokens": 0.00015, "completion_tokens": 0.0},
-        "gpt-4o-mini-realtime-preview": {"prompt_tokens": 0.0006, "completion_tokens": 0.0003},
-        "o1": {"prompt_tokens": 0.015, "completion_tokens": 0.0075},
-        "o1-pro": {"prompt_tokens": 0.15, "completion_tokens": 0.0},
-        "o3-pro": {"prompt_tokens": 0.02, "completion_tokens": 0.0},
-        "o3": {"prompt_tokens": 0.002, "completion_tokens": 0.0005},
-        "o4-mini": {"prompt_tokens": 0.0011, "completion_tokens": 0.000275},
-        "o3-mini": {"prompt_tokens": 0.0011, "completion_tokens": 0.00055},
-        "o1-mini": {"prompt_tokens": 0.0011, "completion_tokens": 0.00055},
-        "codex-mini-latest": {"prompt_tokens": 0.0015, "completion_tokens": 0.000375},
-        "gpt-4o-mini-search-preview": {"prompt_tokens": 0.00015, "completion_tokens": 0.0},
-        "gpt-4o-search-preview": {"prompt_tokens": 0.0025, "completion_tokens": 0.0},
-        "computer-use-preview": {"prompt_tokens": 0.003, "completion_tokens": 0.0},
-        "gpt-image-1": {"prompt_tokens": 0.005, "completion_tokens": 0.00125},
-        "o3_flex": {"prompt_tokens": 0.001, "completion_tokens": 0.00025},
-        "o4-mini_flex": {"prompt_tokens": 0.00055, "completion_tokens": 0.00013800000000000002},
-        "gpt-4o-audio-preview_audio": {"prompt_tokens": 0.04, "completion_tokens": 0.08},
-        "gpt-4o-mini-audio-preview_audio": {"prompt_tokens": 0.01, "completion_tokens": 0.02},
-        "gpt-4o-realtime-preview_audio": {"prompt_tokens": 0.04, "completion_tokens": 0.08},
-        "gpt-4o-mini-realtime-preview_audio": {"prompt_tokens": 0.01, "completion_tokens": 0.02},
-        "gpt-image-1_image_tokens": {"prompt_tokens": 0.01, "completion_tokens": 0.04},
-        "o4-mini-2025-04-16": {"prompt_tokens": 0.004, "completion_tokens": 0.001},
-        "o4-mini-2025-04-16_with_data_sharing": {"prompt_tokens": 0.002, "completion_tokens": 0.0005},
-        "gpt-4.1-2025-04-14": {"prompt_tokens": 0.003, "completion_tokens": 0.00075},
-        "gpt-4.1-mini-2025-04-14": {"prompt_tokens": 0.0008, "completion_tokens": 0.0002},
-        "gpt-4.1-nano-2025-04-14": {"prompt_tokens": 0.0002, "completion_tokens": 5e-05},
-        "gpt-4o-2024-08-06": {"prompt_tokens": 0.00375, "completion_tokens": 0.001875},
-        "gpt-4o-mini-2024-07-18": {"prompt_tokens": 0.0003, "completion_tokens": 0.00015},
-        "gpt-3.5-turbo_finetune": {"prompt_tokens": 0.003, "completion_tokens": 0.0},
-        "davinci-002_finetune": {"prompt_tokens": 0.012, "completion_tokens": 0.0},
-        "babbage-002_finetune": {"prompt_tokens": 0.0016, "completion_tokens": 0.0},
-        "gpt-4o-mini-tts": {"prompt_tokens": 0.0006, "completion_tokens": 0.0},
-        "gpt-4o-transcribe": {"prompt_tokens": 0.0025, "completion_tokens": 0.01},
-        "gpt-4o-mini-transcribe": {"prompt_tokens": 0.00125, "completion_tokens": 0.005},
-        "gpt-4o-mini-tts_audio": {"prompt_tokens": 0.0, "completion_tokens": 0.012},
-        "gpt-4o-transcribe_audio": {"prompt_tokens": 0.006, "completion_tokens": 0.0},
-        "gpt-4o-mini-transcribe_audio": {"prompt_tokens": 0.003, "completion_tokens": 0.0},
-        "text-embedding-3-small": {"prompt_tokens": 2e-05, "completion_tokens": 0.0},
-        "text-embedding-3-large": {"prompt_tokens": 0.00013000000000000002, "completion_tokens": 0.0},
-        "text-embedding-ada-002": {"prompt_tokens": 0.0001, "completion_tokens": 0.0},
-        "omni-moderation-latest": {"prompt_tokens": 0.0, "completion_tokens": 0.0},
-        "text-moderation-latest": {"prompt_tokens": 0.0, "completion_tokens": 0.0},
-        "text-moderation-007": {"prompt_tokens": 0.0, "completion_tokens": 0.0},
-        "chatgpt-4o-latest": {"prompt_tokens": 0.005, "completion_tokens": 0.015},
-        "gpt-4-turbo": {"prompt_tokens": 0.01, "completion_tokens": 0.03},
-        "gpt-4": {"prompt_tokens": 0.03, "completion_tokens": 0.06},
-        "gpt-4-32k": {"prompt_tokens": 0.06, "completion_tokens": 0.12},
-        "gpt-3.5-turbo-0125": {"prompt_tokens": 0.0005, "completion_tokens": 0.0015},
-        "gpt-3.5-turbo-instruct": {"prompt_tokens": 0.0015, "completion_tokens": 0.002},
-        "gpt-3.5-turbo-16k-0613": {"prompt_tokens": 0.003, "completion_tokens": 0.004},
-        "davinci-002_other": {"prompt_tokens": 0.002, "completion_tokens": 0.002},
-        "babbage-002_other": {"prompt_tokens": 0.0004, "completion_tokens": 0.0004},
-        "Code_Interpreter": {"prompt_tokens": 2.9999999999999997e-05, "completion_tokens": 2.9999999999999997e-05},
-        "File_Search_Storage": {"prompt_tokens": 0.0001, "completion_tokens": 0.0001},
-        "File_Search_Tool_Call": {"prompt_tokens": 0.0025, "completion_tokens": 0.0025},
-        "gpt-4.1_search_low": {"prompt_tokens": 0.03, "completion_tokens": 0.03},
-        "gpt-4.1_search_medium": {"prompt_tokens": 0.035, "completion_tokens": 0.035},
-        "gpt-4.1_search_high": {"prompt_tokens": 0.05, "completion_tokens": 0.05},
-        "gpt-4.1-mini_search_low": {"prompt_tokens": 0.025, "completion_tokens": 0.025},
-        "gpt-4.1-mini_search_medium": {"prompt_tokens": 0.0275, "completion_tokens": 0.0275},
-        "gpt-4.1-mini_search_high": {"prompt_tokens": 0.03, "completion_tokens": 0.03},
-        "Whisper": {"prompt_tokens": 6e-06, "completion_tokens": 0.0},
-        "TTS": {"prompt_tokens": 0.015, "completion_tokens": 0.0},
-        "TTS_HD": {"prompt_tokens": 0.03, "completion_tokens": 0.0}
-    }
+        "gpt-4.1": {
+            "input_token": 2.0,
+            "cached_input_token": 0.5,
+            "output_token": 8.0,
+            "prompt_tokens": 0.002,
+            "completion_tokens": 0.0005
+        },
+        "gpt-4.1-mini": {
+            "input_token": 0.4,
+            "cached_input_token": 0.1,
+            "output_token": 1.6,
+            "prompt_tokens": 0.0004,
+            "completion_tokens": 0.0001
+        },
+        "gpt-4.1-nano": {
+            "input_token": 0.1,
+            "cached_input_token": 0.025,
+            "output_token": 0.4,
+            "prompt_tokens": 0.0001,
+            "completion_tokens": 2.5e-05
+        },
+        "gpt-4.5-preview": {
+            "input_token": 75.0,
+            "cached_input_token": 37.5,
+            "output_token": 150.0,
+            "prompt_tokens": 0.075,
+            "completion_tokens": 0.0375
+        },
+        "gpt-4o": {
+            "input_token": 2.5,
+            "cached_input_token": 1.25,
+            "output_token": 10.0,
+            "prompt_tokens": 0.0025,
+            "completion_tokens": 0.00125
+        },
+        "gpt-4o-audio-preview": {
+            "input_token": 2.5,
+            "output_token": 10.0,
+            "prompt_tokens": 0.0025,
+            "completion_tokens": 0.0
+        },
+        "gpt-4o-realtime-preview": {
+            "input_token": 40.0,
+            "cached_input_token": 2.5,
+            "output_token": 80.0,
+            "prompt_tokens": 0.005,
+            "completion_tokens": 0.0025
+        },
+        "gpt-4o-mini": {
+            "input_token": 0.15,
+            "cached_input_token": 0.075,
+            "output_token": 0.6,
+            "prompt_tokens": 0.00015,
+            "completion_tokens": 7.5e-05
+        },
+        "gpt-4o-mini-audio-preview": {
+            "input_token": 0.15,
+            "output_token": 0.6,
+            "prompt_tokens": 0.00015,
+            "completion_tokens": 0.0
+        },
+        "gpt-4o-mini-realtime-preview": {
+            "input_token": 0.6,
+            "cached_input_token": 0.3,
+            "output_token": 2.4,
+            "prompt_tokens": 0.0006,
+            "completion_tokens": 0.0003
+        },
+        "o1": {
+            "input_token": 15.0,
+            "cached_input_token": 7.5,
+            "output_token": 60.0,
+            "prompt_tokens": 0.015,
+            "completion_tokens": 0.0075
+        },
+        "o1-pro": {
+            "input_token": 150.0,
+            "output_token": 600.0,
+            "prompt_tokens": 0.15,
+            "completion_tokens": 0.0
+        },
+        "o3-pro": {
+            "input_token": 20.0,
+            "output_token": 80.0,
+            "prompt_tokens": 0.02,
+            "completion_tokens": 0.0
+        },
+        "o3": {
+            "input_token": 2.0,
+            "cached_input_token": 0.5,
+            "output_token": 8.0,
+            "prompt_tokens": 0.002,
+            "completion_tokens": 0.0005
+        },
+        "o4-mini": {
+            "input_token": 1.1,
+            "cached_input_token": 0.275,
+            "output_token": 4.4,
+            "prompt_tokens": 0.0011,
+            "completion_tokens": 0.000275
+        },
+        "o3-mini": {
+            "input_token": 1.1,
+            "cached_input_token": 0.55,
+            "output_token": 4.4,
+            "prompt_tokens": 0.0011,
+            "completion_tokens": 0.00055
+        },
+        "o1-mini": {
+            "input_token": 1.1,
+            "cached_input_token": 0.55,
+            "output_token": 4.4,
+            "prompt_tokens": 0.0011,
+            "completion_tokens": 0.00055
+        },
+        "codex-mini-latest": {
+            "input_token": 1.5,
+            "output_token": 6.0,
+            "prompt_tokens": 0.0015,
+            "completion_tokens": 0.000375
+        },
+        "gpt-4o-mini-search-preview": {
+            "input_token": 0.15,
+            "output_token": 0.6,
+            "prompt_tokens": 0.00015,
+            "completion_tokens": 0.0
+        },
+        "gpt-4o-search-preview": {
+            "input_token": 2.5,
+            "output_token": 10.0,
+            "prompt_tokens": 0.0025,
+            "completion_tokens": 0.0
+        },
+        "computer-use-preview": {
+            "input_token": 3.0,
+            "output_token": 12.0,
+            "prompt_tokens": 0.003,
+            "completion_tokens": 0.0
+        },
+        "gpt-image-1": {
+            "input_token": 10.0,
+            "cached_input_token": 2.5,
+            "prompt_tokens": 0.005,
+            "completion_tokens": 0.00125
+        },
+        "o3_flex": {
+            "prompt_tokens": 0.001,
+            "completion_tokens": 0.00025
+        },
+        "o4-mini_flex": {
+            "prompt_tokens": 0.00055,
+            "completion_tokens": 0.00013800000000000002
+        },
+        "gpt-4o-audio-preview_audio": {
+            "input_token": 2.5,
+            "output_token": 10.0,
+            "prompt_tokens": 0.04,
+            "completion_tokens": 0.08
+        },
+        "gpt-4o-mini-audio-preview_audio": {
+            "input_token": 0.15,
+            "output_token": 0.6,
+            "prompt_tokens": 0.01,
+            "completion_tokens": 0.02
+        },
+        "gpt-4o-realtime-preview_audio": {
+            "input_token": 40.0,
+            "cached_input_token": 2.5,
+            "output_token": 80.0,
+            "prompt_tokens": 0.04,
+            "completion_tokens": 0.08
+        },
+        "gpt-4o-mini-realtime-preview_audio": {
+            "input_token": 0.6,
+            "cached_input_token": 0.3,
+            "output_token": 2.4,
+            "prompt_tokens": 0.01,
+            "completion_tokens": 0.02
+        },
+        "gpt-image-1_image_tokens": {
+            "input_token": 10.0,
+            "cached_input_token": 2.5,
+            "prompt_tokens": 0.01,
+            "completion_tokens": 0.04
+        },
+        "o4-mini-2025-04-16": {
+            "input_token": 1.1,
+            "cached_input_token": 0.275,
+            "output_token": 4.4,
+            "prompt_tokens": 0.004,
+            "completion_tokens": 0.001
+        },
+        "o4-mini-2025-04-16_with_data_sharing": {
+            "input_token": 0.55,
+            "cached_input_token": 0.138,
+            "output_token": 2.2,
+            "prompt_tokens": 0.002,
+            "completion_tokens": 0.0005
+        },
+        "gpt-4.1-2025-04-14": {
+            "input_token": 2.0,
+            "cached_input_token": 0.5,
+            "output_token": 8.0,
+            "prompt_tokens": 0.003,
+            "completion_tokens": 0.00075
+        },
+        "gpt-4.1-mini-2025-04-14": {
+            "input_token": 0.4,
+            "cached_input_token": 0.1,
+            "output_token": 1.6,
+            "prompt_tokens": 0.0008,
+            "completion_tokens": 0.0002
+        },
+        "gpt-4.1-nano-2025-04-14": {
+            "input_token": 0.1,
+            "cached_input_token": 0.025,
+            "output_token": 0.4,
+            "prompt_tokens": 0.0002,
+            "completion_tokens": 5e-05
+        },
+        "gpt-4o-2024-08-06": {
+            "input_token": 2.5,
+            "cached_input_token": 1.25,
+            "output_token": 10.0,
+            "prompt_tokens": 0.00375,
+            "completion_tokens": 0.001875
+        },
+        "gpt-4o-mini-2024-07-18": {
+            "input_token": 0.15,
+            "cached_input_token": 0.075,
+            "output_token": 0.6,
+            "prompt_tokens": 0.0003,
+            "completion_tokens": 0.00015
+        },
+        "gpt-3.5-turbo_finetune": {
+            "input_token": 8.0,
+            "output_token": 6.0,
+            "prompt_tokens": 0.003,
+            "completion_tokens": 0.0
+        },
+        "davinci-002_finetune": {
+            "training_hour": 6.0,
+            "input_token": 12.0,
+            "output_token": 12.0,
+            "prompt_tokens": 0.012,
+            "completion_tokens": 0.0
+        },
+        "babbage-002_finetune": {
+            "training_hour": 0.4,
+            "input_token": 1.6,
+            "output_token": 1.6,
+            "prompt_tokens": 0.0016,
+            "completion_tokens": 0.0
+        },
+        "gpt-4o-mini-tts": {
+            "input_token": 0.6,
+            "output_token": 0.015,
+            "prompt_tokens": 0.0006,
+            "completion_tokens": 0.0
+        },
+        "gpt-4o-transcribe": {
+            "input_token": 6.0,
+            "output_token": 0.006,
+            "prompt_tokens": 0.0025,
+            "completion_tokens": 0.01
+        },
+        "gpt-4o-mini-transcribe": {
+            "input_token": 1.25,
+            "output_token": 5.0,
+            "prompt_tokens": 0.00125,
+            "completion_tokens": 0.005
+        },
+        "gpt-4o-mini-tts_audio": {
+            "input_token": 0.6,
+            "output_token": 0.015,
+            "prompt_tokens": 0.0,
+            "completion_tokens": 0.012
+        },
+        "gpt-4o-transcribe_audio": {
+            "input_token": 6.0,
+            "output_token": 0.006,
+            "prompt_tokens": 0.006,
+            "completion_tokens": 0.0
+        },
+        "gpt-4o-mini-transcribe_audio": {
+            "input_token": 1.25,
+            "output_token": 5.0,
+            "prompt_tokens": 0.003,
+            "completion_tokens": 0.0
+        },
+        "text-embedding-3-small": {
+            "prompt_tokens": 2e-05,
+            "completion_tokens": 0.0
+        },
+        "text-embedding-3-large": {
+            "prompt_tokens": 0.00013000000000000002,
+            "completion_tokens": 0.0
+        },
+        "text-embedding-ada-002": {
+            "prompt_tokens": 0.0001,
+            "completion_tokens": 0.0
+        },
+        "omni-moderation-latest": {
+            "prompt_tokens": 0.0,
+            "completion_tokens": 0.0
+        },
+        "text-moderation-latest": {
+            "prompt_tokens": 0.0,
+            "completion_tokens": 0.0
+        },
+        "text-moderation-007": {
+            "prompt_tokens": 0.0,
+            "completion_tokens": 0.0
+        },
+        "chatgpt-4o-latest": {
+            "input_token": 2.5,
+            "output_token": 10.0,
+            "prompt_tokens": 0.005,
+            "completion_tokens": 0.015
+        },
+        "gpt-4-turbo": {
+            "input_token": 2.0,
+            "output_token": 8.0,
+            "prompt_tokens": 0.01,
+            "completion_tokens": 0.03
+        },
+        "gpt-4": {
+            "input_token": 2.0,
+            "output_token": 8.0,
+            "prompt_tokens": 0.03,
+            "completion_tokens": 0.06
+        },
+        "gpt-4-32k": {
+            "input_token": 2.0,
+            "output_token": 8.0,
+            "prompt_tokens": 0.06,
+            "completion_tokens": 0.12
+        },
+        "gpt-3.5-turbo-0125": {
+            "input_token": 8.0,
+            "output_token": 6.0,
+            "prompt_tokens": 0.0005,
+            "completion_tokens": 0.0015
+        },
+        "gpt-3.5-turbo-instruct": {
+            "input_token": 8.0,
+            "output_token": 6.0,
+            "prompt_tokens": 0.0015,
+            "completion_tokens": 0.002
+        },
+        "gpt-3.5-turbo-16k-0613": {
+            "input_token": 8.0,
+            "output_token": 6.0,
+            "prompt_tokens": 0.003,
+            "completion_tokens": 0.004
+        },
+        "davinci-002_other": {
+            "training_hour": 6.0,
+            "input_token": 12.0,
+            "output_token": 12.0,
+            "prompt_tokens": 0.002,
+            "completion_tokens": 0.002
+        },
+        "babbage-002_other": {
+            "training_hour": 0.4,
+            "input_token": 1.6,
+            "output_token": 1.6,
+            "prompt_tokens": 0.0004,
+            "completion_tokens": 0.0004
+        },
+        "Code_Interpreter": {
+            "session": 0.03,
+            "prompt_tokens": 2.9999999999999997e-05,
+            "completion_tokens": 2.9999999999999997e-05
+        },
+        "File_Search_Storage": {
+            "storage_per_gb_per_day": 0.1,
+            "free_storage_gb": 1,
+            "prompt_tokens": 0.0001,
+            "completion_tokens": 0.0001
+        },
+        "File_Search_Tool_Call": {
+            "per_1000_calls": 2.5,
+            "prompt_tokens": 0.0025,
+            "completion_tokens": 0.0025
+        },
+        "gpt-4.1_search_low": {
+            "input_token": 0.5,
+            "output_token": 2.0,
+            "prompt_tokens": 0.03,
+            "completion_tokens": 0.03
+        },
+        "gpt-4.1_search_medium": {
+            "input_token": 1.0,
+            "output_token": 4.0,
+            "prompt_tokens": 0.035,
+            "completion_tokens": 0.035
+        },
+        "gpt-4.1_search_high": {
+            "input_token": 2.0,
+            "output_token": 8.0,
+            "prompt_tokens": 0.05,
+            "completion_tokens": 0.05
+        },
+        "gpt-4.1-mini_search_low": {
+            "input_token": 0.1,
+            "output_token": 0.4,
+            "prompt_tokens": 0.025,
+            "completion_tokens": 0.025
+        },
+        "gpt-4.1-mini_search_medium": {
+            "input_token": 0.25,
+            "output_token": 1.0,
+            "prompt_tokens": 0.0275,
+            "completion_tokens": 0.0275
+        },
+        "gpt-4.1-mini_search_high": {
+            "input_token": 0.4,
+            "output_token": 1.6,
+            "prompt_tokens": 0.03,
+            "completion_tokens": 0.03
+        },
+        "Whisper": {
+            "per_minute_transcription": 0.006,
+            "prompt_tokens": 6e-06,
+            "completion_tokens": 0.0
+        },
+        "TTS": {
+            "per_1k_characters": 0.015,
+            "prompt_tokens": 0.015,
+            "completion_tokens": 0.0
+        },
+        "TTS_HD": {
+            "per_1k_characters": 0.03,
+            "prompt_tokens": 0.03,
+            "completion_tokens": 0.0
+        }
+    },
+    "changed_last_7_days": [
+        "o3-pro",
+        "o3-deep-research",
+        "o4-mini-deep-research",
+        "gpt-4o-audio-preview",
+        "gpt-4o-realtime-preview",
+        "gpt-4o-realtime-preview_audio",
+        "o3-pro",
+        "o3-deep-research"
+    ]
 }
