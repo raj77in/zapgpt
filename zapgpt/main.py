@@ -824,6 +824,9 @@ class BaseLLMClient:
             return models
         rich_table.add_column("ID")
         rich_table.add_column("Created")
+        if not hasattr(models, "data"):
+            print("No models available")
+            return
         if hasattr(models.data[0], "context_length"):
             rich_table.add_column("Ctx Len")
             rich_table.add_column("Modality")
@@ -1512,6 +1515,74 @@ class GithubClient(BaseLLMClient):
         )
 
 
+class LocalClient(BaseLLMClient):
+    def get_endpoint(self, url="localhost") -> str:
+        """
+        Return the GitHub AI inference API endpoint URL.
+        Belongs to: LocalClient class.
+        Returns:
+            str: The GitHub AI API endpoint URL.
+        """
+        logger.debug("Base URL set to : {url}")
+        return f"http://{url}/v1"
+
+    def __init__(
+        self,
+        model: str = "gpt-oss:20b",
+        api_key: str = None,
+        file: str = None,
+        temperature: float = 0.7,
+        system_prompt: str = None,
+        output: str = "",
+        max_tokens: int = 4096,
+        url: str = "localhost:11434",
+        **kwargs,
+    ):
+        """
+        Initialize a LocalClient instance.
+        Belongs to: LocalClient class.
+        Args:
+            model (str, optional): The model to use. Defaults to "openai/gpt-4.1".
+            api_key (str, optional): The API key to use. Defaults to None.
+            file (str, optional): The file to use. Defaults to None.
+            temperature (float, optional): The temperature to use. Defaults to 0.7.
+            system_prompt (str, optional): The system prompt to use. Defaults to None.
+            output (str, optional): The output file to use. Defaults to "".
+            max_tokens (int, optional): The maximum number of tokens to use. Defaults to 4096.
+            **kwargs: Additional keyword arguments.
+        """
+        super().__init__(
+            model=model,
+            system_prompt=system_prompt,
+            temperature=temperature,
+            file=file,
+            max_tokens=max_tokens,
+        )
+        self.api_key = api_key
+        logger.debug("using auto routing with lowest cost model")
+        # self.system_prompt = system_prompt
+        # logger.debug(f"system prompt {self.system_prompt=}")
+        if api_key:
+            self.client = OpenAI(
+                api_key=self.api_key, base_url=self.get_endpoint(url=url)
+            )
+        else:
+            self.client = OpenAI(base_url=self.get_endpoint(url=url))
+        logger.debug(f"File is set to {self.file}")
+        if output:
+            self.output = output
+            logger.debug(f"No output on screen, {self.output=}")
+        ## No cost solution
+        self.price = {}
+        models = self.list_available_models(batch=True)
+        for m in models.data:
+            # logger.debug(f"{m}")
+            self.price[m.id] = {
+                "prompt_tokens": 0.0,
+                "completion_tokens": 0.0,
+            }
+
+
 def get_prompt(filename):
     """
     Utility to read a prompt file and return its contents.
@@ -1534,6 +1605,7 @@ provider_map = {
     "replicate": ReplicateClient,
     "deepinfra": DeepInfraClient,
     "github": GithubClient,
+    "local": LocalClient,
 }
 
 # Mapping of providers to their required environment variables
@@ -1544,6 +1616,7 @@ provider_env_vars = {
     "replicate": "REPLICATE_API_TOKEN",
     "deepinfra": "DEEPINFRA_API_TOKEN",
     "github": "GITHUB_KEY",
+    "local": "OLLAMA_KEY",
 }
 
 
@@ -1847,6 +1920,13 @@ def main():
         type=str,
         help="Show the complete prompt that would be sent to LLM for the given prompt name.",
     )
+    parser.add_argument(
+        "-url",
+        "--url",
+        type=str,
+        default="localhost:11434",
+        help="Set the URL for local provider if not localhost:11434",
+    )
 
     args = parser.parse_args()
 
@@ -1897,7 +1977,7 @@ def main():
        ╚█╝
 [/bold yellow]
 [bold blue]╔══════════════════════════════════════════════════╗
-║ ⚡ [bold yellow]Zap[/bold yellow][bold white]GPT[/bold white] [dim]v3.2[/dim] 🚀✨ Multi-provider AI automation 🛡️ ║
+║ ⚡ [bold yellow]Zap[/bold yellow][bold white]GPT[/bold white] [dim]v3.3[/dim] 🚀✨ Multi-provider AI automation 🛡️ ║
 ╚══════════════════════════════════════════════════╝[/bold blue]
             """,
             justify="center",
@@ -1978,10 +2058,15 @@ def main():
     api_key = None
     if required_env_var:
         api_key = os.getenv(required_env_var)
-        if not api_key:
+        if not api_key and args.provider != "local":
             logger.error(f"Missing required environment variable: {required_env_var}")
             output.error(f"Missing API key for {args.provider}")
             output.warning(f"Please set the environment variable: {required_env_var}")
+            sys.exit(1)
+
+    if args.file:
+        if not os.path.exists(args.file):
+            logger.error(f"File name {args.file} does not exists, exiting")
             sys.exit(1)
 
     llm_client = client_class(
@@ -1992,6 +2077,7 @@ def main():
         file=args.file,
         output=args.output,
         max_tokens=args.max_tokens,
+        url=args.url,
     )
 
     if args.image_prompt:
