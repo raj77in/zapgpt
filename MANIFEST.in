@@ -1,6 +1,7 @@
 include README.md
 include LICENSE
 include requirements.txt
+include pyproject.toml
 recursive-include zapgpt/prompts *.json
 include zapgpt/default_pricing.json
 

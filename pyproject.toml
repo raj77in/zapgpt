@@ -4,12 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "zapgpt"
-version = "3.3.1"
+version = "3.4.0"
 description = "A command-line tool for interacting with various LLM providers"
 readme = "README.md"
 license = {file = "LICENSE"}
 authors = [
-    {name = "Amit Agarwal", email = "amit@example.com"}
+    {name = "Amit Agarwal", email = "amit@labnol.org"}
 ]
 maintainers = [
     {name = "Amit Agarwal", email = "amit@example.com"}
@@ -49,7 +49,22 @@ dependencies = [
     "httpx>=0.28.1",
     "rich-argparse>=1.7.1",
     "importlib_resources>=6.4.5;python_version<'3.9'",
+    "tomli>=2.0.0; python_version < '3.11'"
+]
+
+[project.optional-dependencies]
+dev = [
     "pytest>=8.4.1",
+    "pytest-cov>=4.0",
+    "pytest-mock>=3.10",
+    "ruff>=0.1.0",
+    "mypy>=1.0",
+    "pre-commit>=3.0",
+]
+test = [
+    "pytest>=8.4.1",
+    "pytest-cov>=4.0",
+    "pytest-mock>=3.10",
 ]
 
 [project.urls]
@@ -61,26 +76,16 @@ Documentation = "https://github.com/raj77in/zapgpt#readme"
 [project.scripts]
 zapgpt = "zapgpt.main:main"
 
-[project.optional-dependencies]
-dev = [
-    "pytest>=7.0",
-    "pytest-cov>=4.0",
-    "pytest-mock>=3.10",
-    "ruff>=0.1.0",
-    "mypy>=1.0",
-    "pre-commit>=3.0",
-]
-test = [
-    "pytest>=7.0",
-    "pytest-cov>=4.0",
-    "pytest-mock>=3.10",
-]
 
-[tool.setuptools]
-packages = ["zapgpt"]
+[tool.setuptools.packages.find]
+include = ["zapgpt", "zapgpt.*"]
 
 [tool.setuptools.package-data]
-zapgpt = ["prompts/*.json", "default_pricing.json"]
+zapgpt = [
+    "pyproject.toml",
+    "default_pricing.json",
+    "prompts/*.json"
+]
 
 [tool.ruff]
 line-length = 88

@@ -4,8 +4,7 @@ ZapGPT - A command-line tool for interacting with various LLM providers
 ======================================================================
 Author: Amit Agarwal (aka)
 Created: 2025-05-06
-Updated: 2025-07-13
-Version: 3.0.0
+Updated: 2025-08-10
 
 A minimalist CLI tool to chat with LLMs from your terminal. Features include:
 - Support for multiple LLM providers (OpenAI, Anthropic, Mistral, etc.)
@@ -44,8 +43,18 @@ import re  # For regex operations
 import sqlite3  # For usage tracking
 import sys  # For system exit and arguments
 import time  # For time calculations
-from argparse import ArgumentParser, ArgumentTypeError  # For CLI parsing
 from datetime import datetime  # For timestamps
+
+# Get version from pyproject.toml
+try:
+    import tomli
+
+    with open("pyproject.toml", "rb") as f:
+        VERSION = tomli.load(f)["project"]["version"]
+except (ImportError, FileNotFoundError, KeyError):
+    # Fallback version if pyproject.toml is not available
+    VERSION = "3.4.0"
+from argparse import ArgumentParser, ArgumentTypeError  # For CLI parsing
 from pathlib import Path  # For path manipulations
 from textwrap import dedent  # For help/epilog formatting
 from typing import Union  # For type hints
@@ -137,159 +146,239 @@ DB_FILE = os.path.join(CONFIG_DIR, "gpt_usage.db")
 USER_PROMPTS_DIR = os.path.join(CONFIG_DIR, "prompts")
 
 
-def ensure_config_directory():
-    """Ensure the configuration directory exists and copy default files if needed."""
-    if not os.path.exists(CONFIG_DIR):
-        os.makedirs(CONFIG_DIR, exist_ok=True)
-        logger.info(f"Created configuration directory: {CONFIG_DIR}")
+def ensure_pricing_file_updated(logger_instance=None):
+    """Ensure the pricing file is updated to the latest version.
 
-    if not os.path.exists(USER_PROMPTS_DIR):
-        os.makedirs(USER_PROMPTS_DIR, exist_ok=True)
-        logger.info(f"Created prompts directory: {USER_PROMPTS_DIR}")
+    Args:
+        logger_instance: Optional logger instance to use for logging. If not provided,
+                       the global logger will be used.
 
-        # Copy default prompts from package to user config
-        copy_default_prompts_to_config()
-
-    # Always check and copy pricing file if it doesn't exist
-    copy_default_pricing_to_config()
-
-
-def copy_default_prompts_to_config():
-    """Copy default prompt files from package to user config directory."""
-    try:
-        # Try to load default prompts from package
-        from importlib import resources
-
-        if hasattr(resources, "files"):
-            # Python 3.9+
-            prompts_pkg = resources.files("zapgpt") / "prompts"
-            for prompt_file in prompts_pkg.iterdir():
-                if prompt_file.suffix == ".json":
-                    content = prompt_file.read_text(encoding="utf-8")
-                    user_prompt_file = os.path.join(USER_PROMPTS_DIR, prompt_file.name)
-                    with open(user_prompt_file, "w", encoding="utf-8") as f:
-                        f.write(content)
-                    logger.debug(f"Copied default prompt: {prompt_file.name}")
-        else:
-            # Python 3.8 fallback
-            try:
-                import importlib_resources
-
-                prompts_pkg = importlib_resources.files("zapgpt") / "prompts"
-                for prompt_file in prompts_pkg.iterdir():
-                    if prompt_file.suffix == ".json":
-                        content = prompt_file.read_text(encoding="utf-8")
-                        user_prompt_file = os.path.join(
-                            USER_PROMPTS_DIR, prompt_file.name
-                        )
-                        with open(user_prompt_file, "w", encoding="utf-8") as f:
-                            f.write(content)
-                        logger.debug(f"Copied default prompt: {prompt_file.name}")
-            except ImportError:
-                logger.warning(
-                    "Could not copy default prompts: importlib_resources not available"
-                )
-                # Fallback: try to copy from development directory
-                dev_prompts_dir = os.path.join(current_script_path, "prompts")
-                if os.path.exists(dev_prompts_dir):
-                    import shutil
-
-                    for prompt_file in glob.glob(
-                        os.path.join(dev_prompts_dir, "*.json")
-                    ):
-                        shutil.copy2(prompt_file, USER_PROMPTS_DIR)
-                        logger.debug(
-                            f"Copied default prompt: {os.path.basename(prompt_file)}"
-                        )
-
-        logger.info(f"Default prompts copied to {USER_PROMPTS_DIR}")
-        logger.info("You can now customize these prompts or add your own!")
-
-    except Exception as e:
-        logger.error(f"Failed to copy default prompts: {e}")
-        logger.info(f"Please manually create prompt files in {USER_PROMPTS_DIR}")
+    Returns:
+        bool: True if the pricing file was updated, False otherwise.
+    """
+    logger.debug("Ensuring pricing file is up to date")
+    return copy_default_pricing_to_config(
+        force_update=True, logger_instance=logger_instance
+    )
 
 
-def copy_default_pricing_to_config():
-    """Copy default pricing file from package to user config directory."""
-    pricing_file = os.path.join(CONFIG_DIR, "pricing.json")
-    if os.path.exists(pricing_file):
-        logger.debug("Pricing file already exists in config directory")
-        return
+def copy_default_pricing_to_config(force_update=False, logger_instance=None):
+    """Copy default pricing file from package to user config directory.
 
-    try:
-        # Try to load default pricing from package
-        from importlib import resources
+    Args:
+        force_update (bool): If True, update the pricing file even if it exists.
+        logger_instance: Optional logger instance to use for logging. If not provided,
+                       the global logger will be used.
 
-        if hasattr(resources, "files"):
-            # Python 3.9+
-            try:
-                pricing_pkg = resources.files("zapgpt") / "default_pricing.json"
-                content = pricing_pkg.read_text(encoding="utf-8")
-                with open(pricing_file, "w", encoding="utf-8") as f:
-                    f.write(content)
-                logger.debug("Copied default pricing file")
-            except Exception:
-                # Fallback to development directory
-                dev_pricing_file = os.path.join(
-                    current_script_path, "default_pricing.json"
-                )
-                if os.path.exists(dev_pricing_file):
-                    import shutil
+    Returns:
+        bool: True if the file was created/updated, False if no action was taken.
+    """
+    # Use provided logger or fall back to global logger
+    log = logger_instance or logger
 
-                    shutil.copy2(dev_pricing_file, pricing_file)
-                    logger.debug("Copied pricing from development directory")
-        else:
-            # Python 3.8 fallback
-            try:
-                import importlib_resources
-
-                pricing_pkg = (
-                    importlib_resources.files("zapgpt") / "default_pricing.json"
-                )
-                content = pricing_pkg.read_text(encoding="utf-8")
-                with open(pricing_file, "w", encoding="utf-8") as f:
-                    f.write(content)
-                logger.debug("Copied default pricing file")
-            except ImportError:
-                # Final fallback to development directory
-                dev_pricing_file = os.path.join(
-                    current_script_path, "default_pricing.json"
-                )
-                if os.path.exists(dev_pricing_file):
-                    import shutil
-
-                    shutil.copy2(dev_pricing_file, pricing_file)
-                    logger.debug("Copied pricing from development directory")
-
-        logger.info(f"Default pricing copied to {pricing_file}")
-        logger.info("You can now customize pricing data if needed!")
-
-    except Exception as e:
-        logger.error(f"Failed to copy default pricing: {e}")
-        logger.info(f"Please manually create pricing.json in {CONFIG_DIR}")
-
-
-def load_pricing_data():
-    """Load pricing data from user config directory."""
     pricing_file = os.path.join(CONFIG_DIR, "pricing.json")
 
+    # If file exists and we're not forcing an update, return early
+    if os.path.exists(pricing_file) and not force_update:
+        log.debug("Pricing file already exists in config directory")
+        return False
+
+    # Ensure the config directory exists
+    os.makedirs(os.path.dirname(pricing_file), exist_ok=True)
+
+    # First, try to load from package resources (installed package)
+    try:
+        # Try Python 3.9+ importlib.resources.files
+        from importlib import resources
+
+        if hasattr(resources, "files"):  # Python 3.9+
+            pricing_pkg = resources.files("zapgpt") / "default_pricing.json"
+            content = pricing_pkg.read_text(encoding="utf-8")
+        else:  # Python < 3.9 fallback
+            import pkg_resources
+
+            content = pkg_resources.resource_string(
+                "zapgpt", "default_pricing.json"
+            ).decode("utf-8")
+
+        # Write the content to a temporary file first
+        import tempfile
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", delete=False, encoding="utf-8"
+        ) as tmp_file:
+            tmp_file.write(content)
+            tmp_path = tmp_file.name
+
+        # Move the temporary file to the target location atomically
+        import shutil
+
+        shutil.move(tmp_path, pricing_file)
+
+        log.info(f"Updated pricing file at {pricing_file}")
+        return True
+
+    except (ImportError, FileNotFoundError, Exception) as e:
+        log.debug(f"Failed to load pricing from package resources: {e}")
+
+        # Fallback to development directory
+        dev_pricing_file = os.path.join(current_script_path, "default_pricing.json")
+        if os.path.exists(dev_pricing_file):
+            try:
+                # Use a temporary file to ensure atomic write
+                import tempfile
+
+                with tempfile.NamedTemporaryFile(mode="wb", delete=False) as tmp_file:
+                    with open(dev_pricing_file, "rb") as src_file:
+                        shutil.copyfileobj(src_file, tmp_file)
+                    tmp_path = tmp_file.name
+
+                # Move the temporary file to the target location atomically
+                shutil.move(tmp_path, pricing_file)
+                log.info(f"Copied pricing from development directory to {pricing_file}")
+                return True
+            except Exception as e:
+                log.error(f"Failed to copy pricing from development directory: {e}")
+                # Clean up the temporary file if it exists
+                if "tmp_path" in locals() and os.path.exists(tmp_path):
+                    try:
+                        os.unlink(tmp_path)
+                    except OSError:
+                        # Ignore errors when trying to delete temp file
+                        pass
+        else:
+            log.error(f"Development pricing file not found at {dev_pricing_file}")
+
+        # If we got here, all attempts failed
+        log.error(f"Failed to create/update pricing file at {pricing_file}")
+        return False
+
+
+def load_pricing_data(logger_instance=None):
+    """Load pricing data from the config directory.
+
+    Args:
+        logger_instance: Optional logger instance to use for logging. If not provided,
+                       the global logger will be used.
+
+    Returns:
+        dict: The loaded pricing data, or an empty dict if the file is missing or invalid.
+    """
+    # Use provided logger or fall back to global logger
+    log = logger_instance or logger
+
+    pricing_file = os.path.join(CONFIG_DIR, "pricing.json")
+
+    # Always return an empty dict if the file doesn't exist
     if not os.path.exists(pricing_file):
-        logger.warning(f"Pricing file not found at {pricing_file}")
+        log.warning(f"Pricing file not found at {pricing_file}")
         return {}
 
     try:
+        # Read and parse the file
         with open(pricing_file, encoding="utf-8") as f:
             pricing_data = json.load(f)
-        logger.debug(f"Loaded pricing data from {pricing_file}")
+
+        # If we got here, the file exists and is valid JSON
+        log.debug(f"Loaded pricing data from {pricing_file}")
         return pricing_data
-    except Exception as e:
-        logger.error(f"Failed to load pricing data: {e}")
+
+    except (json.JSONDecodeError, OSError) as e:
+        log.error(f"Failed to load pricing data: {e}")
         return {}
+    except Exception as e:
+        log.error(f"Unexpected error loading pricing data: {e}")
+        return {}
+
+    # Fallback to empty dict
+    return {}
 
 
 # Initialize configuration directory
-ensure_config_directory()
+def ensure_config_directory(logger_instance=None):
+    """Ensure the configuration directory and required files exist.
+
+    Args:
+        logger_instance: Optional logger instance to use for logging. If not provided,
+                       the global logger will be used.
+    """
+    # Use provided logger or fall back to global logger
+    log = logger_instance or logger
+
+    log.debug(
+        f"[ensure_config_directory] Ensuring config directory exists: {CONFIG_DIR}"
+    )
+    os.makedirs(CONFIG_DIR, exist_ok=True)
+    log.debug(
+        f"[ensure_config_directory] Ensuring prompts directory exists: {USER_PROMPTS_DIR}"
+    )
+    os.makedirs(USER_PROMPTS_DIR, exist_ok=True)
+
+    # Get the directory where the current script is located
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    log.debug(f"[ensure_config_directory] Current script directory: {current_dir}")
+
+    # Look for prompts in the package directory
+    default_prompts_dir = os.path.join(current_dir, "prompts")
+    log.debug(
+        f"[ensure_config_directory] Looking for default prompts in: {default_prompts_dir}"
+    )
+
+    # Also check in the parent directory (for development)
+    parent_prompts_dir = os.path.join(os.path.dirname(current_dir), "prompts")
+    log.debug(
+        f"[ensure_config_directory] Also checking parent directory: {parent_prompts_dir}"
+    )
+
+    # Try both possible locations for the prompts directory
+    prompts_dirs = [default_prompts_dir, parent_prompts_dir]
+    found_prompts = False
+
+    for prompts_dir in prompts_dirs:
+        if os.path.exists(prompts_dir):
+            log.debug(
+                f"[ensure_config_directory] Found prompts directory at: {prompts_dir}"
+            )
+            found_prompts = True
+
+            # Copy all JSON files from the prompts directory
+            for prompt_file in os.listdir(prompts_dir):
+                if prompt_file.endswith(".json"):
+                    src_file = os.path.join(prompts_dir, prompt_file)
+                    dest_file = os.path.join(USER_PROMPTS_DIR, prompt_file)
+
+                    log.debug(
+                        f"[ensure_config_directory] Processing prompt file: {src_file} -> {dest_file}"
+                    )
+
+                    # Always copy the file, overwriting if it exists
+                    log.debug(
+                        f"[ensure_config_directory] Copying prompt file: {src_file} to {dest_file}"
+                    )
+                    try:
+                        import shutil
+
+                        shutil.copy2(src_file, dest_file)
+                        log.debug(
+                            f"[ensure_config_directory] Successfully copied {src_file} to {dest_file}"
+                        )
+                    except Exception as e:
+                        log.error(
+                            f"[ensure_config_directory] Failed to copy {src_file} to {dest_file}: {e}"
+                        )
+
+            # If we found and processed a prompts directory, we can stop looking
+            break
+
+    if not found_prompts:
+        log.warning(
+            f"[ensure_config_directory] No prompts directory found in any of these locations: {prompts_dirs}"
+        )
+
+    # Ensure pricing file is up to date
+    log.debug("[ensure_config_directory] Ensuring pricing file is up to date")
+    ensure_pricing_file_updated(logger_instance=log)
+
 
 # Load prompts from user configuration directory
 prompt_jsons = {}
@@ -399,36 +488,54 @@ def color_cost(value):
 def fmt_colored(value):
     """
     Color the value green if zero, cyan otherwise.
+    If the value is a string that can't be converted to float, return it as-is.
     Args:
         value (float or str): The value to color.
     Returns:
         str: The color-coded string representation of the value.
     """
-    num = float(value)
-    color = "green" if num == 0 else "cyan"
-    return f"[{color}]{num:.10f}[/{color}]"
+    try:
+        num = float(value)
+        color = "green" if num == 0 else "cyan"
+        return f"[{color}]{num:.10f}[/{color}]"
+    except (ValueError, TypeError):
+        # If we can't convert to float, return the original value as a string
+        return str(value)
 
 
 def get_filenames_without_extension(folder_path):
     """
-    List all filenames in a folder without the .txt extension.
+    List all filenames in a folder without their extensions.
     Args:
         folder_path (str): The path to the folder to scan.
     Returns:
-        list: Filenames without the .txt extension.
+        list: Filenames without their extensions.
     """
-    logger.debug(f"Scanning folder for .txt files: {folder_path}")
+    logger.debug(f"Scanning folder for files: {folder_path}")
     filenames = []
+
+    # Check if directory exists
+    if not os.path.isdir(folder_path):
+        logger.warning(f"Directory does not exist: {folder_path}")
+        return filenames
 
     # Iterate through all files in the specified folder
     for filename in os.listdir(folder_path):
-        # Check if the file has a .txt extension
-        if filename.endswith(".txt"):
-            # Remove the .txt extension and add to the list
-            logger.debug(f"Found prompt file: {filename}")
-            filenames.append(filename[:-4])  # Remove the last 4 characters ('.txt')
-    logger.info(f"Found {len(filenames)} prompt files in {folder_path}")
-    return filenames
+        file_path = os.path.join(folder_path, filename)
+
+        # Skip directories
+        if os.path.isdir(file_path):
+            continue
+
+        # Get the base name without extension
+        base_name = os.path.splitext(filename)[0]
+
+        # Add the base name to the list
+        logger.debug(f"Found file: {filename} -> {base_name}")
+        filenames.append(base_name)
+
+    logger.debug(f"Found {len(filenames)} files in {folder_path}")
+    return sorted(set(filenames))  # Remove duplicates and sort
 
 
 # def match_abbreviation(arg, choices):
@@ -1957,7 +2064,7 @@ def main():
     # Print zapgpt logo/banner (user-facing, not logged) - only if not quiet
     if not args.quiet:
         console.print(
-            """
+            f"""
 [bold yellow]
         ███████╗
        ████████╗
@@ -1977,7 +2084,7 @@ def main():
        ╚█╝
 [/bold yellow]
 [bold blue]╔══════════════════════════════════════════════════╗
-║ ⚡ [bold yellow]Zap[/bold yellow][bold white]GPT[/bold white] [dim]v3.3.1[/dim] 🚀✨ Multi-provider AI automation 🛡️ ║
+║ ⚡ [bold yellow]Zap[/bold yellow][bold white]GPT[/bold white] [dim]v{VERSION}[/dim] 🚀✨ Multi-provider AI automation 🛡️ ║
 ╚══════════════════════════════════════════════════╝[/bold blue]
             """,
             justify="center",
