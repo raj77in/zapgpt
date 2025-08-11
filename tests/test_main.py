@@ -266,11 +266,24 @@ def test_ensure_config_directory(tmp_path, monkeypatch):
 
 
 def test_load_pricing_data(mock_config_dir):
-    # Import the module after setting up the mock config
+    """Test loading pricing data from the config directory."""
+    import json
     import sys
 
     if "zapgpt.main" in sys.modules:
         del sys.modules["zapgpt.main"]
+
+    # Create test pricing data matching the actual default pricing structure
+    test_pricing = {
+        "openai": {
+            "gpt-5": {"prompt_tokens": 0.00125, "completion_tokens": 0.01},
+            "gpt-5-mini": {"prompt_tokens": 0.00025, "completion_tokens": 0.002},
+        }
+    }
+
+    # Write test pricing file
+    pricing_file = mock_config_dir / "pricing.json"
+    pricing_file.write_text(json.dumps(test_pricing))
 
     # Test loading pricing data
     pricing_data = load_pricing_data()
@@ -278,27 +291,42 @@ def test_load_pricing_data(mock_config_dir):
     # Verify the structure of the returned data
     assert isinstance(pricing_data, dict), "Pricing data should be a dictionary"
 
-    # Check for some expected top-level providers
-    expected_providers = ["openai", "anthropic", "replicate"]
-    assert any(provider in pricing_data for provider in expected_providers), (
-        f"Expected at least one of {expected_providers} in pricing data"
+    # Check for expected provider (only 'openai' is in the default pricing)
+    assert "openai" in pricing_data, "Expected 'openai' in pricing data"
+
+    # Verify the structure of the openai pricing
+    assert isinstance(pricing_data["openai"], dict), (
+        "OpenAI pricing should be a dictionary"
     )
+    assert len(pricing_data["openai"]) > 0, "OpenAI pricing should contain models"
 
-    # Check that at least one provider has models with pricing data
-    has_models_with_pricing = False
-    for provider_models in pricing_data.values():
-        for model_data in provider_models.values():
-            if isinstance(model_data, dict) and "prompt_tokens" in model_data:
-                has_models_with_pricing = True
-                assert isinstance(model_data["prompt_tokens"], (int, float)), (
-                    f"prompt_tokens should be a number, got {type(model_data['prompt_tokens'])}"
-                )
-                if "completion_tokens" in model_data:
-                    assert isinstance(model_data["completion_tokens"], (int, float)), (
-                        f"completion_tokens should be a number, got {type(model_data['completion_tokens'])}"
-                    )
+    # Check model pricing structure
+    for provider, models in test_pricing.items():
+        assert provider in pricing_data, (
+            f"Provider {provider} not found in pricing data"
+        )
+        for model, _prices in models.items():
+            assert model in pricing_data[provider], (
+                f"Model {model} not found in {provider} pricing"
+            )
+            assert "prompt_tokens" in pricing_data[provider][model], (
+                f"prompt_tokens not found for {provider}/{model}"
+            )
+            assert "completion_tokens" in pricing_data[provider][model], (
+                f"completion_tokens not found for {provider}/{model}"
+            )
 
-    assert has_models_with_pricing, "No models with pricing data found"
+            # Verify price values are numbers
+            assert isinstance(
+                pricing_data[provider][model]["prompt_tokens"], (int, float)
+            ), (
+                f"prompt_tokens should be a number, got {type(pricing_data[provider][model]['prompt_tokens'])}"
+            )
+            assert isinstance(
+                pricing_data[provider][model]["completion_tokens"], (int, float)
+            ), (
+                f"completion_tokens should be a number, got {type(pricing_data[provider][model]['completion_tokens'])}"
+            )
 
 
 def test_show_complete_prompt(mock_config_dir, capsys, monkeypatch):

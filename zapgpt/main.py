@@ -177,10 +177,31 @@ def copy_default_pricing_to_config(force_update=False, logger_instance=None):
     log = logger_instance or logger
 
     pricing_file = os.path.join(CONFIG_DIR, "pricing.json")
+    needs_update = force_update
 
-    # If file exists and we're not forcing an update, return early
-    if os.path.exists(pricing_file) and not force_update:
-        log.debug("Pricing file already exists in config directory")
+    # Check if the file exists and compare versions if not forcing update
+    if not needs_update and os.path.exists(pricing_file):
+        try:
+            # Try to get version from installed package
+            from importlib.metadata import version
+
+            current_version = version("zapgpt")
+
+            # Try to get version from existing pricing file
+            with open(pricing_file, encoding="utf-8") as f:
+                existing_data = json.load(f)
+                if existing_data.get("_version") != current_version:
+                    log.info(
+                        f"Pricing file version mismatch, updating to version {current_version}"
+                    )
+                    needs_update = True
+        except Exception as e:
+            log.debug(f"Could not check versions, forcing update: {e}")
+            needs_update = True
+
+    # If we don't need to update, return early
+    if not needs_update and os.path.exists(pricing_file):
+        log.debug("Pricing file is up to date")
         return False
 
     # Ensure the config directory exists
@@ -201,7 +222,18 @@ def copy_default_pricing_to_config(force_update=False, logger_instance=None):
                 "zapgpt", "default_pricing.json"
             ).decode("utf-8")
 
+        # Add version information
+        try:
+            from importlib.metadata import version
+
+            content_dict = json.loads(content)
+            content_dict["_version"] = version("zapgpt")
+            content = json.dumps(content_dict, indent=2)
+        except Exception as e:
+            log.debug(f"Could not add version info: {e}")
+
         # Write the content to a temporary file first
+        import shutil
         import tempfile
 
         with tempfile.NamedTemporaryFile(
@@ -211,8 +243,6 @@ def copy_default_pricing_to_config(force_update=False, logger_instance=None):
             tmp_path = tmp_file.name
 
         # Move the temporary file to the target location atomically
-        import shutil
-
         shutil.move(tmp_path, pricing_file)
 
         log.info(f"Updated pricing file at {pricing_file}")
@@ -351,13 +381,20 @@ def ensure_config_directory(logger_instance=None):
                         f"[ensure_config_directory] Processing prompt file: {src_file} -> {dest_file}"
                     )
 
-                    # Always copy the file, overwriting if it exists
-                    log.debug(
-                        f"[ensure_config_directory] Copying prompt file: {src_file} to {dest_file}"
-                    )
                     try:
+                        import filecmp
                         import shutil
 
+                        # Check if files are different before copying
+                        if os.path.exists(dest_file) and filecmp.cmp(
+                            src_file, dest_file, shallow=False
+                        ):
+                            log.debug(
+                                f"Prompt file {prompt_file} is up to date, skipping"
+                            )
+                            continue
+
+                        # Copy the file if it's new or different
                         shutil.copy2(src_file, dest_file)
                         log.debug(
                             f"[ensure_config_directory] Successfully copied {src_file} to {dest_file}"
@@ -377,6 +414,7 @@ def ensure_config_directory(logger_instance=None):
 
     # Ensure pricing file is up to date
     log.debug("[ensure_config_directory] Ensuring pricing file is up to date")
+    copy_default_pricing_to_config(force_update=True, logger_instance=log)
     ensure_pricing_file_updated(logger_instance=log)
 
 
@@ -1878,6 +1916,9 @@ def main():
         except (AttributeError, OSError):
             # Fallback for older Python versions or if reconfigure fails
             pass
+
+    # Ensure the configuration directory and files exist and are up to date
+    ensure_config_directory()
 
     # Gather available prompt choices from the prompts directory
     # Dynamically load all JSON prompt files from the prompts directory
