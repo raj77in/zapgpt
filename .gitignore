@@ -1,3 +1,5 @@
+run_tests_in_docker.sh
+Dockerfile.test
 gpt_usage.db
 prompts/my*
 

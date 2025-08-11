@@ -19,31 +19,44 @@ os.environ["GITHUB_KEY"] = "dummy_key_for_testing"
 
 
 @pytest.fixture(autouse=True)
-def setup_test_db(tmp_path):
+def setup_test_db(tmp_path, monkeypatch):
     """Set up test database path and ensure cleanup."""
     # Create a temporary directory for the test database
     test_db_dir = tmp_path / "test_db"
-    test_db_dir.mkdir(exist_ok=True)
+    test_db_dir.mkdir(exist_ok=True, mode=0o755)  # Ensure directory is executable
     test_db_path = test_db_dir / "test_db.sqlite"
-
-    # Set the environment variable
-    os.environ["ZAPGPT_DB_PATH"] = str(test_db_path)
 
     # Ensure the directory exists and is writable
     test_db_path.parent.mkdir(parents=True, exist_ok=True)
-    test_db_path.touch()
 
-    # Make sure the database is writable
-    test_db_path.chmod(0o644)
+    # Create an empty database file with proper permissions
+    test_db_path.touch()
+    test_db_path.chmod(0o644)  # Read/write for owner, read for others
+
+    # Set the environment variable for the database path
+    monkeypatch.setenv("ZAPGPT_DB_PATH", str(test_db_path))
+
+    # Also set it in os.environ for any code that might use it directly
+    os.environ["ZAPGPT_DB_PATH"] = str(test_db_path)
+
+    # Verify the file is writable
+    assert test_db_path.parent.is_dir(), f"Database directory {test_db_path.parent} does not exist"
+    assert os.access(str(test_db_path.parent), os.W_OK), f"No write permission in {test_db_path.parent}"
 
     yield str(test_db_path)
 
     # Cleanup
     if test_db_path.exists():
         try:
+            # Close any open connections
+            import sqlite3
+            conn = sqlite3.connect(str(test_db_path))
+            conn.close()
+
+            # Remove the database file
             test_db_path.unlink()
-        except OSError:
-            pass
+        except Exception as e:
+            print(f"Warning: Could not clean up test database: {e}")
 
 
 @pytest.fixture
