@@ -40,8 +40,12 @@ def setup_test_db(tmp_path, monkeypatch):
     os.environ["ZAPGPT_DB_PATH"] = str(test_db_path)
 
     # Verify the file is writable
-    assert test_db_path.parent.is_dir(), f"Database directory {test_db_path.parent} does not exist"
-    assert os.access(str(test_db_path.parent), os.W_OK), f"No write permission in {test_db_path.parent}"
+    assert test_db_path.parent.is_dir(), (
+        f"Database directory {test_db_path.parent} does not exist"
+    )
+    assert os.access(str(test_db_path.parent), os.W_OK), (
+        f"No write permission in {test_db_path.parent}"
+    )
 
     yield str(test_db_path)
 
@@ -50,6 +54,7 @@ def setup_test_db(tmp_path, monkeypatch):
         try:
             # Close any open connections
             import sqlite3
+
             conn = sqlite3.connect(str(test_db_path))
             conn.close()
 

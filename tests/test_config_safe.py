@@ -79,8 +79,8 @@ class TestConfigSafe:
         from zapgpt import main
 
         # Save original values
-        original_config_dir = getattr(main, 'CONFIG_DIR', None)
-        original_prompts_dir = getattr(main, 'USER_PROMPTS_DIR', None)
+        original_config_dir = getattr(main, "CONFIG_DIR", None)
+        original_prompts_dir = getattr(main, "USER_PROMPTS_DIR", None)
 
         try:
             # Set the attributes directly on the module
@@ -89,7 +89,9 @@ class TestConfigSafe:
 
             # Patch the remaining functions
             with (
-                patch("zapgpt.main.copy_default_pricing_to_config") as mock_copy_pricing,
+                patch(
+                    "zapgpt.main.copy_default_pricing_to_config"
+                ) as mock_copy_pricing,
                 patch("os.path.exists", return_value=True),
                 patch("os.makedirs"),
             ):
@@ -108,22 +110,28 @@ class TestConfigSafe:
             # Verify the function performed the expected operations
             # Check if the config directory was created
             mock_logger.debug.assert_any_call(
-                f"[ensure_config_directory] Ensuring pricing file is up to date"
+                "[ensure_config_directory] Ensuring pricing file is up to date"
             )
 
             # Verify the prompts directory check was performed
-            from unittest.mock import call
             mock_calls = [str(c) for c in mock_logger.debug.mock_calls]
-            assert any("[ensure_config_directory] Found prompts directory at:" in str(c) for c in mock_logger.debug.mock_calls), \
+            assert any(
+                "[ensure_config_directory] Found prompts directory at:" in str(c)
+                for c in mock_logger.debug.mock_calls
+            ), (
                 f"Expected log message about prompts directory not found in: {mock_calls}"
+            )
 
             # Verify pricing file was handled - check it was called with the expected arguments
             # The function might be called multiple times, so we check for the expected calls
-            mock_copy_pricing.assert_any_call(force_update=True, logger_instance=mock_logger)
+            mock_copy_pricing.assert_any_call(
+                force_update=True, logger_instance=mock_logger
+            )
 
             # Verify the number of calls is as expected (2 in this case)
-            assert mock_copy_pricing.call_count == 2, \
+            assert mock_copy_pricing.call_count == 2, (
                 f"Expected 2 calls to copy_default_pricing_to_config, got {mock_copy_pricing.call_count}"
+            )
 
 
 if __name__ == "__main__":
