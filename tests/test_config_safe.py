@@ -73,6 +73,8 @@ class TestConfigSafe:
         # Create a mock logger
         mock_logger = MagicMock()
 
+        # Import the module to get the actual CONFIG_DIR
+
         # Patch the necessary paths and functions
         with (
             patch("zapgpt.main.CONFIG_DIR", str(config_dir)),

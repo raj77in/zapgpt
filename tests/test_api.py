@@ -71,22 +71,39 @@ class TestQueryLLMAPI:
 
     def test_query_llm_structure_with_dummy_key(self):
         """Test that query_llm structure works (will fail at API call)"""
+        from openai import AuthenticationError
+
         from zapgpt import query_llm
 
         # This should fail with authentication error, not structure error
-        with pytest.raises(Exception) as exc_info:
+        try:
             query_llm("Hello", provider="openai", quiet=True)
+            pytest.fail("Expected an authentication error but none was raised")
+        except Exception as e:
+            # Check if it's an authentication error or contains authentication-related messages
+            if not isinstance(e, AuthenticationError):
+                error_msg = str(e).lower()
+                assert any(
+                    keyword in error_msg
+                    for keyword in [
+                        "authentication",
+                        "api key",
+                        "unauthorized",
+                        "invalid",
+                        "401",
+                        "403",
+                    ]
+                ), f"Expected authentication error but got: {str(e)}"
 
-        # Should be an API authentication error, not a code structure error
-        error_msg = str(exc_info.value).lower()
-        assert any(
-            keyword in error_msg
-            for keyword in ["authentication", "api key", "unauthorized", "invalid"]
-        )
-
-    def test_query_llm_with_custom_parameters(self):
+    def test_query_llm_with_custom_parameters(self, tmp_path):
         """Test query_llm with various parameters"""
+        import os
+
         from zapgpt import query_llm
+
+        # Set up a temporary database file
+        test_db = tmp_path / "test_db.sqlite"
+        os.environ["ZAPGPT_DB_PATH"] = str(test_db)
 
         # Test with custom parameters (will fail at API call but structure should work)
         with pytest.raises(AuthenticationError):
@@ -103,9 +120,15 @@ class TestQueryLLMAPI:
 class TestFileProcessing:
     """Test file processing functionality"""
 
-    def test_file_processing_structure(self):
+    def test_file_processing_structure(self, tmp_path):
         """Test file processing with temporary file"""
+        import os
+
         from zapgpt import query_llm
+
+        # Set up a temporary database file
+        test_db = tmp_path / "test_db.sqlite"
+        os.environ["ZAPGPT_DB_PATH"] = str(test_db)
 
         # Create temporary file
         with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
@@ -128,9 +151,15 @@ class TestFileProcessing:
 class TestSubprocessIntegration:
     """Test subprocess integration examples"""
 
-    def test_subprocess_integration_structure(self):
+    def test_subprocess_integration_structure(self, tmp_path):
         """Test subprocess integration structure"""
+        import os
+
         from zapgpt import query_llm
+
+        # Set up a temporary database file
+        test_db = tmp_path / "test_db.sqlite"
+        os.environ["ZAPGPT_DB_PATH"] = str(test_db)
 
         # Run simple command
         result = subprocess.run(["echo", "test output"], capture_output=True, text=True)

@@ -17,6 +17,17 @@ os.environ["REPLICATE_API_TOKEN"] = "dummy_key_for_testing"
 os.environ["DEEPINFRA_API_TOKEN"] = "dummy_key_for_testing"
 os.environ["GITHUB_KEY"] = "dummy_key_for_testing"
 
+# Set up test database path
+test_db_path = os.path.join(os.path.dirname(__file__), "test_db.sqlite")
+os.environ["ZAPGPT_DB_PATH"] = test_db_path
+
+# Ensure test database is removed if it exists
+if os.path.exists(test_db_path):
+    try:
+        os.remove(test_db_path)
+    except OSError:
+        pass
+
 
 @pytest.fixture
 def temp_file():
