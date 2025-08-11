@@ -17,16 +17,33 @@ os.environ["REPLICATE_API_TOKEN"] = "dummy_key_for_testing"
 os.environ["DEEPINFRA_API_TOKEN"] = "dummy_key_for_testing"
 os.environ["GITHUB_KEY"] = "dummy_key_for_testing"
 
-# Set up test database path
-test_db_path = os.path.join(os.path.dirname(__file__), "test_db.sqlite")
-os.environ["ZAPGPT_DB_PATH"] = test_db_path
 
-# Ensure test database is removed if it exists
-if os.path.exists(test_db_path):
-    try:
-        os.remove(test_db_path)
-    except OSError:
-        pass
+@pytest.fixture(autouse=True)
+def setup_test_db(tmp_path):
+    """Set up test database path and ensure cleanup."""
+    # Create a temporary directory for the test database
+    test_db_dir = tmp_path / "test_db"
+    test_db_dir.mkdir(exist_ok=True)
+    test_db_path = test_db_dir / "test_db.sqlite"
+
+    # Set the environment variable
+    os.environ["ZAPGPT_DB_PATH"] = str(test_db_path)
+
+    # Ensure the directory exists and is writable
+    test_db_path.parent.mkdir(parents=True, exist_ok=True)
+    test_db_path.touch()
+
+    # Make sure the database is writable
+    test_db_path.chmod(0o644)
+
+    yield str(test_db_path)
+
+    # Cleanup
+    if test_db_path.exists():
+        try:
+            test_db_path.unlink()
+        except OSError:
+            pass
 
 
 @pytest.fixture
