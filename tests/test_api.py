@@ -71,40 +71,18 @@ class TestQueryLLMAPI:
 
     def test_query_llm_structure_with_dummy_key(self):
         """Test that query_llm structure works (will fail at API call)"""
-        import sqlite3
-
-        from openai import AuthenticationError
-
         from zapgpt import query_llm
 
         # This should fail with authentication error, not structure error
-        try:
+        with pytest.raises(Exception) as exc_info:
             query_llm("Hello", provider="openai", quiet=True)
-            pytest.fail("Expected an authentication error but none was raised")
-        except sqlite3.OperationalError as e:
-            # If we get a database error, check if the database file exists and is writable
-            db_path = os.environ.get("ZAPGPT_DB_PATH")
-            if db_path and os.path.exists(db_path):
-                # If the file exists but we still get an error, it might be a permissions issue
-                assert os.access(db_path, os.W_OK), (
-                    f"Database file {db_path} is not writable"
-                )
-            pytest.fail(f"Database error: {str(e)}")
-        except Exception as e:
-            # Check if it's an authentication error or contains authentication-related messages
-            if not isinstance(e, AuthenticationError):
-                error_msg = str(e).lower()
-                expected_errors = [
-                    "authentication",
-                    "api key",
-                    "unauthorized",
-                    "invalid",
-                    "401",
-                    "403",
-                ]
-                assert any(keyword in error_msg for keyword in expected_errors), (
-                    f"Expected authentication error but got: {str(e)}"
-                )
+        print("Executed")
+        # Should be an API authentication error, not a code structure error
+        error_msg = str(exc_info.value).lower()
+        assert any(
+            keyword in error_msg
+            for keyword in ["authentication", "api key", "unauthorized", "invalid"]
+        )
 
     def test_query_llm_with_custom_parameters(self):
         """Test query_llm with various parameters"""

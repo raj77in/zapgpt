@@ -137,9 +137,12 @@ logger = logging.getLogger("llm")
 # Script Configuration
 # ===============================
 current_script_path = str(Path(__file__).resolve().parent)
-# Store database in user config directory
+# Store database in user config directory or use environment variable
 CONFIG_DIR = os.path.expanduser("~/.config/zapgpt")
-DB_FILE = os.path.join(CONFIG_DIR, "gpt_usage.db")
+DB_FILE = os.environ.get("ZAPGPT_DB_PATH") or os.path.join(CONFIG_DIR, "gpt_usage.db")
+
+# Ensure the directory exists
+os.makedirs(os.path.dirname(os.path.abspath(DB_FILE)), exist_ok=True)
 
 
 # Configuration directory setup
