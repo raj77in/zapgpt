@@ -1417,6 +1417,10 @@ class OpenRouterClient(BaseLLMClient):
         # max_total = 128000
         # max_tokens = min(4096, max_total - prompt_tokens)  # absolute safe cap
         params = {
+            "extra_headers": {
+                "HTTP-Referer": "https://blog.amit-agarwal.co.in",  # Your app's URL
+                "X-Title": "Zapgpt AI Assistant",  # Your app's display name
+            },
             "model": self.model,
             "messages": prompt,
             "temperature": self.temperature,
