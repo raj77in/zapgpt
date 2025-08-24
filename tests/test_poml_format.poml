@@ -1,0 +1,18 @@
+[poml]
+
+# This is a simple POML file
+[[poml]]
+speaker = "system"
+content = """
+This is a test POML file.
+It should be parsed correctly.
+"""
+
+[[poml]]
+speaker = "user"
+content = "What is the meaning of life?"
+
+# Optional model configuration
+[poml.model]
+name = "gpt-4"
+temperature = 0.7

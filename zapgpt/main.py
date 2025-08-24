@@ -127,7 +127,7 @@ output = None
 # Use RichHandler for pretty, colorized terminal logs.
 console = Console()
 logging.basicConfig(
-    level=logging.INFO,  # Change to DEBUG for more verbosity
+    level=logging.WARNING,  # Change to DEBUG for more verbosity
     handlers=[RichHandler(rich_tracebacks=True)],
     format="%(message)s",
 )
@@ -248,7 +248,7 @@ def copy_default_pricing_to_config(force_update=False, logger_instance=None):
         # Move the temporary file to the target location atomically
         shutil.move(tmp_path, pricing_file)
 
-        log.info(f"Updated pricing file at {pricing_file}")
+        log.debug(f"Updated pricing file at {pricing_file}")
         return True
 
     except (ImportError, FileNotFoundError, Exception) as e:
@@ -686,7 +686,7 @@ class BaseLLMClient:
         Create the usage database if it does not exist.
         Belongs to: BaseLLMClient class.
         """
-        logger.info(f"Initializing database at {DB_FILE}")
+        logger.debug(f"Initializing database at {DB_FILE}")
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
         c.execute(
@@ -962,7 +962,7 @@ class BaseLLMClient:
         Returns:
             list or None: List of models if batch is True, otherwise prints a table.
         """
-        logger.info("Fetching available model list")
+        logger.debug("Fetching available model list")
         rich_table = Table(title="Model List")
 
         # headers = ["ID", "Created", "Description", "Context Len", "Modality", "Supported Parameters" ]
@@ -2093,7 +2093,7 @@ def main():
     global output
     output = OutputHandler(quiet_mode=args.quiet)
 
-    logger.info("Starting zapgpt CLI main entry point")
+    logger.debug("Starting zapgpt CLI main entry point")
 
     # Handle prompt listing early and exit
     if args.list_prompt:
@@ -2103,7 +2103,7 @@ def main():
         logger.info("Displayed all available prompts.")
         return
 
-    logger.info(
+    logger.debug(
         f"Parsed arguments: model={args.model}, provider={args.provider}, max_tokens={args.max_tokens}"
     )
 
@@ -2168,7 +2168,7 @@ def main():
                 )
                 if common_base_prompt:
                     system_prompt = f"{common_base_prompt}\n\n{system_prompt}"
-                    logger.info(f"Combined 'common_base' with '{prompt_name}' prompt")
+                    logger.debug(f"Combined 'common_base' with '{prompt_name}' prompt")
 
             # User-provided model takes precedence over prompt's model
             if args.model != "openai/gpt-4.1":  # User explicitly provided a model
@@ -2178,7 +2178,7 @@ def main():
                 )
             else:
                 model = prompt_data.get("model", args.model)
-                logger.info(f"Using model from prompt '{prompt_name}': '{model}'")
+                logger.debug(f"Using model from prompt '{prompt_name}': '{model}'")
 
             if args.explain_AI:
                 system_prompt += "\n\nImportant! Always start with a json of steps and thoughts that you took to get to response, json should have step number and your thought process.\n"
