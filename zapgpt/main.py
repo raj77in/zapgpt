@@ -1171,7 +1171,7 @@ class OpenAIClient(BaseLLMClient):
         max_tokens: Optional[int] = None,
         **kwargs,
     ):
-        if max_tokens :
+        if max_tokens:
             super().__init__(
                 model=model,
                 system_prompt=system_prompt,
@@ -1184,7 +1184,7 @@ class OpenAIClient(BaseLLMClient):
                 model=model,
                 system_prompt=system_prompt,
                 temperature=temperature,
-                file=file
+                file=file,
             )
         self.api_key = api_key
         # self.system_prompt = system_prompt
@@ -1812,7 +1812,7 @@ def query_llm(
     use_prompt: str = None,
     temperature: float = 0.3,
     quiet: bool = True,
-    max_tokens: Optional[int]= None,
+    max_tokens: Optional[int] = None,
 ) -> str:
     """
     Programmatic API to query LLM providers from Python scripts.
@@ -2082,7 +2082,7 @@ def main():
         "-mt",
         "--max-tokens",
         type=int,
-        #default=4096,
+        # default=4096,
         help="Use low cost LLM for OpenRouter",
     )
     parser.add_argument(
@@ -2143,7 +2143,7 @@ def main():
         logger.info("Displayed all available prompts.")
         return
 
-    mt = args.max_tokens if args.max_tokens else  0
+    mt = args.max_tokens if args.max_tokens else 0
     logger.debug(
         f"Parsed arguments: model={args.model}, provider={args.provider}, max_tokens={mt}"
     )
