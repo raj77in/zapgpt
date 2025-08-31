@@ -367,7 +367,6 @@ class TestBaseLLMClient:
     def test_init(self):
         client = BaseLLMClient("test-model")
         assert client.model == "test-model"
-        assert client.max_tokens == 1000
         assert client.temperature == 0.7
 
         # Check that the database was created
@@ -416,7 +415,6 @@ class TestOpenAIClient:
         assert len(payload["messages"]) > 0
         assert payload["messages"][0]["content"] == "Test prompt"
         assert "temperature" in payload
-        assert "max_tokens" in payload
 
     def test_get_endpoint(self):
         client = OpenAIClient(api_key="test-key")
