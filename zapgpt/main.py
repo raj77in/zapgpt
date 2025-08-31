@@ -57,7 +57,7 @@ except (ImportError, FileNotFoundError, KeyError):
 from argparse import ArgumentParser, ArgumentTypeError  # For CLI parsing
 from pathlib import Path  # For path manipulations
 from textwrap import dedent  # For help/epilog formatting
-from typing import Union  # For type hints
+from typing import Optional, Union  # For type hints
 
 # ===============================
 # Third-Party Imports
@@ -645,10 +645,10 @@ class BaseLLMClient:
         self,
         model: str,
         system_prompt: str = "",
-        max_tokens: int = 1000,
         temperature: float = 0.7,
         output: str = "",
-        file: str = None,
+        file: Optional[str] = None,
+        max_tokens: Optional[int] = None,
     ):
         """
         Initialize a BaseLLMClient instance.
@@ -666,7 +666,7 @@ class BaseLLMClient:
         )
         self.model = model
         self.system_prompt = system_prompt
-        self.max_tokens = max_tokens
+        self.max_tokens = max_tokens if max_tokens else 0
         self.temperature = temperature
         self.chat_history = []
         self.current_script_path = str(current_script_path)
@@ -834,13 +834,21 @@ class BaseLLMClient:
         self.prompt_tokens = prompt_tokens
         # max_total = 128000
         # max_tokens = min(4096, max_total - prompt_tokens)  # absolute safe cap
-        params = {
-            "model": self.model,
-            "messages": prompt,
-            "temperature": self.temperature,
-            "max_tokens": self.max_tokens,
-            "top_p": 1.0,
-        }
+        if self.max_tokens:
+            params = {
+                "model": self.model,
+                "messages": prompt,
+                "temperature": self.temperature,
+                "max_tokens": self.max_tokens,
+                "top_p": 1.0,
+            }
+        else:
+            params = {
+                "model": self.model,
+                "messages": prompt,
+                "temperature": self.temperature,
+                "top_p": 1.0,
+            }
         logger.debug(f"Making request with {params=}")
         response = self.client.chat.completions.create(**params)
         logger.debug(f"{response=}")
@@ -1160,16 +1168,24 @@ class OpenAIClient(BaseLLMClient):
         temperature: int = 0.7,
         system_prompt: str = None,
         output: str = "",
-        max_tokens: int = 4096,
+        max_tokens: Optional[int] = None,
         **kwargs,
     ):
-        super().__init__(
-            model=model,
-            system_prompt=system_prompt,
-            temperature=temperature,
-            file=file,
-            max_tokens=max_tokens,
-        )
+        if max_tokens :
+            super().__init__(
+                model=model,
+                system_prompt=system_prompt,
+                temperature=temperature,
+                file=file,
+                max_tokens=max_tokens,
+            )
+        else:
+            super().__init__(
+                model=model,
+                system_prompt=system_prompt,
+                temperature=temperature,
+                file=file
+            )
         self.api_key = api_key
         # self.system_prompt = system_prompt
         # logger.debug(f"system prompt {self.system_prompt=}")
@@ -1208,12 +1224,19 @@ class OpenAIClient(BaseLLMClient):
             dict: The payload for the OpenAI API request.
         """
         messages = self.create_prompt(prompt)
-        return {
-            "model": self.model,
-            "messages": messages,
-            "max_tokens": self.max_tokens,
-            "temperature": self.temperature,
-        }
+        if self.max_tokens:
+            return {
+                "model": self.model,
+                "messages": messages,
+                "max_tokens": self.max_tokens,
+                "temperature": self.temperature,
+            }
+        else:
+            return {
+                "model": self.model,
+                "messages": messages,
+                "temperature": self.temperature,
+            }
 
     def get_endpoint(self) -> str:
         """
@@ -1613,13 +1636,22 @@ class GithubClient(BaseLLMClient):
         self.prompt_tokens = prompt_tokens
         # max_total = 128000
         # max_tokens = min(4096, max_total - prompt_tokens)  # absolute safe cap
-        params = {
-            "model": self.model,
-            "messages": prompt,
-            "temperature": self.temperature,
-            "max_tokens": self.max_tokens,
-            "top_p": 1.0,
-        }
+        #
+        if self.max_tokens:
+            params = {
+                "model": self.model,
+                "messages": prompt,
+                "temperature": self.temperature,
+                "max_tokens": self.max_tokens,
+                "top_p": 1.0,
+            }
+        else:
+            params = {
+                "model": self.model,
+                "messages": prompt,
+                "temperature": self.temperature,
+                "top_p": 1.0,
+            }
         logger.debug(f"Making request with {params=} using requests")
         # response = self.client.chat.completions.create(**params)
         response = requests.post(self.get_endpoint(), headers=self.headers, json=params)
@@ -1779,8 +1811,8 @@ def query_llm(
     system_prompt: str = None,
     use_prompt: str = None,
     temperature: float = 0.3,
-    max_tokens: int = 4096,
     quiet: bool = True,
+    max_tokens: Optional[int]= None,
 ) -> str:
     """
     Programmatic API to query LLM providers from Python scripts.
@@ -1863,13 +1895,21 @@ def query_llm(
 
     # Create client
     client_class = provider_map[provider]
-    llm_client = client_class(
-        model=final_model,
-        api_key=api_key,
-        system_prompt=final_system_prompt,
-        temperature=temperature,
-        max_tokens=max_tokens,
-    )
+    if max_tokens:
+        llm_client = client_class(
+            model=final_model,
+            api_key=api_key,
+            system_prompt=final_system_prompt,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+    else:
+        llm_client = client_class(
+            model=final_model,
+            api_key=api_key,
+            system_prompt=final_system_prompt,
+            temperature=temperature,
+        )
 
     # Send request and return response
     try:
@@ -2042,7 +2082,7 @@ def main():
         "-mt",
         "--max-tokens",
         type=int,
-        default=4096,
+        #default=4096,
         help="Use low cost LLM for OpenRouter",
     )
     parser.add_argument(
@@ -2103,8 +2143,9 @@ def main():
         logger.info("Displayed all available prompts.")
         return
 
+    mt = args.max_tokens if args.max_tokens else  0
     logger.debug(
-        f"Parsed arguments: model={args.model}, provider={args.provider}, max_tokens={args.max_tokens}"
+        f"Parsed arguments: model={args.model}, provider={args.provider}, max_tokens={mt}"
     )
 
     model = args.model
