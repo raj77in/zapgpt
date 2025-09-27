@@ -22,6 +22,7 @@ Usage:
     zapgpt --list-prompt
     zapgpt --config
     zapgpt --show-prompt coding
+    zapgpt -xai "What is capital of France?"
 
 Configuration:
     Configuration and prompts are stored in ~/.config/zapgpt/
@@ -721,7 +722,7 @@ class BaseLLMClient:
         Record a model usage event to the database.
         """
         logger.info(
-            f"Recording usage for model={model}, provider={provider}, tokens={prompt_tokens + completion_tokens}, cost={cost}"
+            f"Recording usage for model={model}, provider={provider}, tokens={prompt_tokens + completion_tokens}, calculated cost={cost}"
         )
         conn = sqlite3.connect(DB_FILE)
         logger.debug(f"Opened {DB_FILE=}")
@@ -2106,11 +2107,13 @@ def main():
     )
     parser.add_argument("-o", "--output", default=None, help="The output file to use.")
     parser.add_argument(
+        "-cf",
         "--config",
         action="store_true",
         help="Show configuration directory information.",
     )
     parser.add_argument(
+        "-sp",
         "--show-prompt",
         type=str,
         help="Show the complete prompt that would be sent to LLM for the given prompt name.",
@@ -2175,6 +2178,7 @@ def main():
 [bold blue]╔══════════════════════════════════════════════════╗
 ║ ⚡ [bold yellow]Zap[/bold yellow][bold white]GPT[/bold white] [dim]v{VERSION}[/dim] 🚀✨ Multi-provider AI automation 🛡️ ║
 ╚══════════════════════════════════════════════════╝[/bold blue]
+[Github](https://github.com/raj77in/zapgpt), Author: Amit Agarwal
             """,
             justify="center",
         )

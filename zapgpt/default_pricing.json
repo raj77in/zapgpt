@@ -17,6 +17,10 @@
             "prompt_tokens": 0.00125,
             "completion_tokens": 0.01
         },
+        "gpt-5-codex": {
+            "prompt_tokens": 0.00125,
+            "completion_tokens": 0.01
+        },
         "gpt-4.1": {
             "prompt_tokens": 0.002,
             "completion_tokens": 0.008
