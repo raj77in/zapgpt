@@ -54,7 +54,7 @@ try:
         VERSION = tomli.load(f)["project"]["version"]
 except (ImportError, FileNotFoundError, KeyError):
     # Fallback version if pyproject.toml is not available
-    VERSION = "3.4.11"
+    VERSION = "3.4.12"
 from argparse import ArgumentParser, ArgumentTypeError  # For CLI parsing
 from pathlib import Path  # For path manipulations
 from textwrap import dedent  # For help/epilog formatting
@@ -1992,7 +1992,6 @@ def main():
         "-m",
         "--model",
         type=str,
-        default="openai/gpt-4.1",
         help="Specify the model to use (default: openai/gpt-4o-mini). Available models can be listed using --list-models.",
     )
     parser.add_argument(
@@ -2043,7 +2042,6 @@ def main():
         "-te",
         "--temp",
         type=float,
-        default=0.3,
         help="Set the temperature for responses (0-1.0). Default is 0.3.",
     )
     parser.add_argument(
@@ -2076,7 +2074,6 @@ def main():
         "-p",
         "--provider",
         choices=provider_map.keys(),
-        default="github",
         help="Select LLM provider",
     )
     parser.add_argument(
@@ -2128,6 +2125,26 @@ def main():
 
     args = parser.parse_args()
 
+    if os.path.exists(CONFIG_DIR+"/config.json"):
+        with open(CONFIG_DIR+"/config.json", "r") as file:
+            default_values = json.load(file)
+            if 'temp' in default_values:
+                temp = default_values['temp']
+            if 'model' in default_values:
+                model = default_values['model']
+            if 'provider' in default_values:
+                provider = default_values['provider']
+    else:
+        logger.info("No config file {CONFIG_DIR+'/config.json'} found, you can create a json with model, provider and temp for default values.")
+    if args.provider:
+        provider = args.provider
+    if args.temp:
+        temp = args.temp
+    if args.model:
+        model = args.model
+
+    logger.warning(f"{temp=}, {model=}, {provider=}")
+
     # Handle quiet mode FIRST - suppress all output except LLM response
     if args.quiet:
         logger.setLevel(logging.CRITICAL)  # Only show critical errors
@@ -2148,10 +2165,8 @@ def main():
 
     mt = args.max_tokens if args.max_tokens else 0
     logger.debug(
-        f"Parsed arguments: model={args.model}, provider={args.provider}, max_tokens={mt}"
+        f"Parsed arguments: model={model}, provider={provider}, max_tokens={mt}"
     )
-
-    model = args.model
 
     # Print zapgpt logo/banner (user-facing, not logged) - only if not quiet
     if not args.quiet:
@@ -2216,13 +2231,13 @@ def main():
                     logger.debug(f"Combined 'common_base' with '{prompt_name}' prompt")
 
             # User-provided model takes precedence over prompt's model
-            if args.model != "openai/gpt-4.1":  # User explicitly provided a model
-                model = args.model
+            if model != "openai/gpt-4.1":  # User explicitly provided a model
+                model = model
                 logger.info(
                     f"Using user-specified model '{model}' (overriding prompt default)"
                 )
             else:
-                model = prompt_data.get("model", args.model)
+                model = prompt_data.get("model", model)
                 logger.debug(f"Using model from prompt '{prompt_name}': '{model}'")
 
             if args.explain_AI:
@@ -2230,9 +2245,9 @@ def main():
         else:
             logger.error(f"Prompt '{prompt_name}' not found in prompts directory.")
             system_prompt = ""
-            model = args.model
+            model = model
     else:
-        model = args.model
+        model = model
 
     # Prepare assistant_input if present
     assistant_input = None
@@ -2247,20 +2262,20 @@ def main():
         return
 
     if args.show_prompt:
-        show_complete_prompt(args.show_prompt, args.model)
+        show_complete_prompt(args.show_prompt, model)
         return
 
     # Now handle commands that need API access
-    client_class = provider_map[args.provider]
+    client_class = provider_map[provider]
 
     # Get the correct API key for the selected provider
-    required_env_var = provider_env_vars.get(args.provider)
+    required_env_var = provider_env_vars.get(provider)
     api_key = None
     if required_env_var:
         api_key = os.getenv(required_env_var)
-        if not api_key and args.provider != "local":
+        if not api_key and provider != "local":
             logger.error(f"Missing required environment variable: {required_env_var}")
-            output.error(f"Missing API key for {args.provider}")
+            output.error(f"Missing API key for {provider}")
             output.warning(f"Please set the environment variable: {required_env_var}")
             sys.exit(1)
 
@@ -2273,7 +2288,7 @@ def main():
         model=model,
         api_key=api_key,
         system_prompt=system_prompt,
-        temperature=args.temp,
+        temperature=temp,
         file=args.file,
         output=args.output,
         max_tokens=args.max_tokens,
@@ -2281,7 +2296,7 @@ def main():
     )
 
     if args.image_prompt:
-        if args.provider != "openai":
+        if provider != "openai":
             output.error("Only OpenAI is supported for Image generation")
             return False
         llm_client.generate_image(args.image_prompt, args.image_size)
