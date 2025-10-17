@@ -2130,20 +2130,43 @@ def main():
             default_values = json.load(file)
             if "temp" in default_values:
                 temp = default_values["temp"]
+            else:
+                if args.temp:
+                    temp = args.temp
+                else:
+                    temp = 0.3
             if "model" in default_values:
                 model = default_values["model"]
-            if "provider" in default_values:
-                provider = default_values["provider"]
+            else:
+                if args.model:
+                    model = args.model
+                else:
+                    model = "openai/gpt-4.1"
+
+            if args.provider:
+                provider = args.provider
+            else:
+                if "provider" in default_values:
+                    provider = default_values["provider"]
+                else:
+                    provider = "openrouter"
     else:
+        if args.temp:
+            temp = args.temp
+        else:
+            temp = 0.3
+        if args.model:
+            model = args.model
+        else:
+            model = "openai/gpt-4.1"
+
+        if args.provider:
+            provider = args.provider
+        else:
+            provider = "openrouter"
         logger.info(
             "No config file {CONFIG_DIR+'/config.json'} found, you can create a json with model, provider and temp for default values."
         )
-    if args.provider:
-        provider = args.provider
-    if args.temp:
-        temp = args.temp
-    if args.model:
-        model = args.model
 
     logger.warning(f"{temp=}, {model=}, {provider=}")
 
