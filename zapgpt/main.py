@@ -2125,17 +2125,19 @@ def main():
 
     args = parser.parse_args()
 
-    if os.path.exists(CONFIG_DIR+"/config.json"):
-        with open(CONFIG_DIR+"/config.json", "r") as file:
+    if os.path.exists(CONFIG_DIR + "/config.json"):
+        with open(CONFIG_DIR + "/config.json") as file:
             default_values = json.load(file)
-            if 'temp' in default_values:
-                temp = default_values['temp']
-            if 'model' in default_values:
-                model = default_values['model']
-            if 'provider' in default_values:
-                provider = default_values['provider']
+            if "temp" in default_values:
+                temp = default_values["temp"]
+            if "model" in default_values:
+                model = default_values["model"]
+            if "provider" in default_values:
+                provider = default_values["provider"]
     else:
-        logger.info("No config file {CONFIG_DIR+'/config.json'} found, you can create a json with model, provider and temp for default values.")
+        logger.info(
+            "No config file {CONFIG_DIR+'/config.json'} found, you can create a json with model, provider and temp for default values."
+        )
     if args.provider:
         provider = args.provider
     if args.temp:
