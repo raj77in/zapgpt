@@ -54,7 +54,7 @@ try:
         VERSION = tomli.load(f)["project"]["version"]
 except (ImportError, FileNotFoundError, KeyError):
     # Fallback version if pyproject.toml is not available
-    VERSION = "3.4.14"
+    VERSION = "3.4.15"
 from argparse import ArgumentParser, ArgumentTypeError  # For CLI parsing
 from pathlib import Path  # For path manipulations
 from textwrap import dedent  # For help/epilog formatting
