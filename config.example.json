@@ -1,0 +1,5 @@
+{
+  "model":"openai/gpt-4.1",
+  "temp":0.7,
+  "provider":"github"
+}

@@ -1927,6 +1927,23 @@ class MyHelpFormatter(RichHelpFormatter):
         RichHelpFormatter.__init__(prog, rich_terminal=False, width=100)
 
 
+def set_value(config_value, arg_value, name):
+    DEFAULTS= {
+        "temp": 0.7,
+        "model": "openai/gpt-4.1",
+        "provider": "openrouter",
+    }
+    if arg_value is not None:
+        print(f"ARG: Returning {arg_value}")
+        return arg_value
+    elif config_value.get(name, None) is not None:
+        print(f"Config : Returning {config_value[name]}")
+        return config_value[name]
+    else:
+        print(f"Default : Returning {DEFAULTS[name]}")
+        return DEFAULTS[name]
+
+
 epilog = Markdown(
     dedent(
         """
@@ -2125,48 +2142,15 @@ def main():
 
     args = parser.parse_args()
 
+    config_values = {}
+
     if os.path.exists(CONFIG_DIR + "/config.json"):
         with open(CONFIG_DIR + "/config.json") as file:
-            default_values = json.load(file)
-            if "temp" in default_values:
-                temp = default_values["temp"]
-            else:
-                if args.temp:
-                    temp = args.temp
-                else:
-                    temp = 0.3
-            if "model" in default_values:
-                model = default_values["model"]
-            else:
-                if args.model:
-                    model = args.model
-                else:
-                    model = "openai/gpt-4.1"
+            config_values = json.load(file)
 
-            if args.provider:
-                provider = args.provider
-            else:
-                if "provider" in default_values:
-                    provider = default_values["provider"]
-                else:
-                    provider = "openrouter"
-    else:
-        if args.temp:
-            temp = args.temp
-        else:
-            temp = 0.3
-        if args.model:
-            model = args.model
-        else:
-            model = "openai/gpt-4.1"
-
-        if args.provider:
-            provider = args.provider
-        else:
-            provider = "openrouter"
-        logger.info(
-            "No config file {CONFIG_DIR+'/config.json'} found, you can create a json with model, provider and temp for default values."
-        )
+    temp = set_value(config_values, args.temp, "temp")
+    model = set_value(config_values, args.model, "model")
+    provider = set_value(config_values, args.provider, "provider")
 
     logger.warning(f"{temp=}, {model=}, {provider=}")
 
