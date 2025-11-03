@@ -54,7 +54,7 @@ try:
         VERSION = tomli.load(f)["project"]["version"]
 except (ImportError, FileNotFoundError, KeyError):
     # Fallback version if pyproject.toml is not available
-    VERSION = "3.4.15"
+    VERSION = "3.4.16"
 from argparse import ArgumentParser, ArgumentTypeError  # For CLI parsing
 from pathlib import Path  # For path manipulations
 from textwrap import dedent  # For help/epilog formatting
@@ -1928,7 +1928,7 @@ class MyHelpFormatter(RichHelpFormatter):
 
 
 def set_value(config_value, arg_value, name):
-    DEFAULTS= {
+    DEFAULTS = {
         "temp": 0.7,
         "model": "openai/gpt-4.1",
         "provider": "openrouter",
