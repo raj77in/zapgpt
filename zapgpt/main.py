@@ -44,18 +44,8 @@ import re  # For regex operations
 import sqlite3  # For usage tracking
 import sys  # For system exit and arguments
 import time  # For time calculations
-from datetime import datetime  # For timestamps
-
-# Get version from pyproject.toml
-try:
-    import tomli
-
-    with open("pyproject.toml", "rb") as f:
-        VERSION = tomli.load(f)["project"]["version"]
-except (ImportError, FileNotFoundError, KeyError):
-    # Fallback version if pyproject.toml is not available
-    VERSION = "3.4.16"
 from argparse import ArgumentParser, ArgumentTypeError  # For CLI parsing
+from datetime import datetime  # For timestamps
 from pathlib import Path  # For path manipulations
 from textwrap import dedent  # For help/epilog formatting
 from typing import Optional, Union  # For type hints
@@ -142,6 +132,12 @@ current_script_path = str(Path(__file__).resolve().parent)
 CONFIG_DIR = os.path.expanduser("~/.config/zapgpt")
 DB_FILE = os.environ.get("ZAPGPT_DB_PATH") or os.path.join(CONFIG_DIR, "gpt_usage.db")
 
+try:
+    from importlib.metadata import PackageNotFoundError, version
+
+    VERSION = version("zapgpt")
+except PackageNotFoundError:
+    VERSION = "Unknown"
 # Ensure the directory exists
 os.makedirs(os.path.dirname(os.path.abspath(DB_FILE)), exist_ok=True)
 
@@ -1022,7 +1018,7 @@ class BaseLLMClient:
             pricing_data (dict): Dictionary with model pricing information.
             filter (str, optional): Filter string for model names. Defaults to None.
         """
-        logger.info("Printing model pricing table")
+        logger.debug("Printing model pricing table")
         rich_table = Table(title="Model Usage Costs")
 
         rich_table.add_column("Model")
@@ -1934,13 +1930,10 @@ def set_value(config_value, arg_value, name):
         "provider": "openrouter",
     }
     if arg_value is not None:
-        print(f"ARG: Returning {arg_value}")
         return arg_value
     elif config_value.get(name, None) is not None:
-        print(f"Config : Returning {config_value[name]}")
         return config_value[name]
     else:
-        print(f"Default : Returning {DEFAULTS[name]}")
         return DEFAULTS[name]
 
 
@@ -2152,7 +2145,7 @@ def main():
     model = set_value(config_values, args.model, "model")
     provider = set_value(config_values, args.provider, "provider")
 
-    logger.warning(f"{temp=}, {model=}, {provider=}")
+    logger.debug(f"{temp=}, {model=}, {provider=}")
 
     # Handle quiet mode FIRST - suppress all output except LLM response
     if args.quiet:
