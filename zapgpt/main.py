@@ -1277,14 +1277,19 @@ class OpenAIClient(BaseLLMClient):
             logger.debug(f"{data=}")
             for i in data["data"]:
                 for r in i["results"]:
+                    ##breakpoint()
                     logger.debug(f"New Line: {r=}")
                     table.append(
-                        [r["line_item"], f"{r['amount']['value']:.8f}", r["project_id"]]
+                        [
+                            r["line_item"],
+                            f"{float(r['amount']['value']):.8f}",
+                            r["project_id"],
+                        ]
                     )
                     logger.debug(
-                        f"""Adding [r["line_item"], f'{r["amount"]["value"]:.10f}', r["project_id"]])"""
+                        f"""Adding [r["line_item"], f'{float(r["amount"]["value"]):.10f}', r["project_id"]])"""
                     )
-                    a = a + r["amount"]["value"]
+                    a = a + float(r["amount"]["value"])
                     # print (f"New Total: {a}")
 
                 # print(f"💸 Total Usage: ${data['total_usage'] / 100:.4f} (USD)")
@@ -1941,12 +1946,12 @@ epilog = Markdown(
     dedent(
         """
     ### Example usage:
-      * `gpt "What's the capital of France?"`
-      * `gpt "Refactor this function" --model openai/gpt-4`
-      * `gpt --history`
-      * `gpt --total`
-      * `gpt --list-models`
-      * `gpt "Give me a plan for a YouTube channel" --use-prompt`
+      * `zapgpt "What's the capital of France?"`
+      * `zapgpt "Refactor this function" --model openai/gpt-4`
+      * `zapgpt --history`
+      * `zapgpt --total`
+      * `zapgpt --list-models`
+      * `zapgpt "Give me a plan for a YouTube channel" --use-prompt`
     """
     )
 )
