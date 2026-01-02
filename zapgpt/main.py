@@ -986,7 +986,7 @@ class BaseLLMClient:
         print("\n📦 Available OpenAI Models:")
         for m in models.data:
             # Convert created to humban-readable formatting
-            m.created = datetime.fromtimestamp(m.created).strftime("%Y-%m-%d %H:%M:%S")
+            m.created = datetime.fromtimestamp(m.created).strftime("%Y-%m-%d %H:%M:%S") if not None else "NA"
             # print(f"* {m.id}, Owner: {m.owned_by}, Created: {m.created}")
             # table.append([ m.id, m.created, m.description, m.context_length, m.architecture["modality"], m.supported_parameters ])
             if filter:

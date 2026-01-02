@@ -168,6 +168,14 @@
       "prompt_tokens": 0.003,
       "completion_tokens": 0.012
     },
+    "gpt-image-1.5": {
+      "prompt_tokens": 0.008,
+      "completion_tokens": 0.032
+    },
+    "chatgpt-image-latest": {
+      "prompt_tokens": 0.008,
+      "completion_tokens": 0.032
+    },
     "gpt-image-1": {
       "prompt_tokens": 0.01,
       "completion_tokens": 0.04
@@ -175,14 +183,6 @@
     "gpt-image-1-mini": {
       "prompt_tokens": 0.0025,
       "completion_tokens": 0.008
-    },
-    "sora-2": {
-      "prompt_tokens": 72012801280.72,
-      "completion_tokens": 0.0001
-    },
-    "sora-2-pro": {
-      "prompt_tokens": 1024179217921.024,
-      "completion_tokens": 0.0005
     },
     "Storage for ChatKit File / Image Uploads": {
       "prompt_tokens": 0.001,
