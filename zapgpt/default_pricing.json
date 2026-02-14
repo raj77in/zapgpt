@@ -1,5 +1,6 @@
 {
   "openai" : {
+  {
     "gpt-5.2": {
       "prompt_tokens": 0.00175,
       "completion_tokens": 0.014
@@ -31,6 +32,10 @@
     "gpt-5-chat-latest": {
       "prompt_tokens": 0.00125,
       "completion_tokens": 0.01
+    },
+    "gpt-5.2-codex": {
+      "prompt_tokens": 0.00175,
+      "completion_tokens": 0.014
     },
     "gpt-5.1-codex-max": {
       "prompt_tokens": 0.00125,
