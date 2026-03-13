@@ -1,5 +1,13 @@
 {
   "openai" : {
+    "gpt-5.4": {
+      "prompt_tokens": 0.0025,
+      "completion_tokens": 0.015
+    },
+    "gpt-5.4-pro": {
+      "prompt_tokens": 0.03,
+      "completion_tokens": 0.18
+    },
     "gpt-5.2": {
       "prompt_tokens": 0.00175,
       "completion_tokens": 0.014
@@ -84,6 +92,10 @@
       "prompt_tokens": 0.032,
       "completion_tokens": 0.064
     },
+    "gpt-realtime-1.5": {
+      "prompt_tokens": 0.032,
+      "completion_tokens": 0.064
+    },
     "gpt-realtime-mini": {
       "prompt_tokens": 0.01,
       "completion_tokens": 0.02
@@ -97,6 +109,10 @@
       "completion_tokens": 0.02
     },
     "gpt-audio": {
+      "prompt_tokens": 0.032,
+      "completion_tokens": 0.064
+    },
+    "gpt-audio-1.5": {
       "prompt_tokens": 0.032,
       "completion_tokens": 0.064
     },
@@ -194,19 +210,19 @@
     },
     "gpt-4o-mini-tts": {
       "prompt_tokens": 0.0006,
-      "completion_tokens": 0.000014999999999999999
+      "completion_tokens": 0.012
     },
     "gpt-4o-transcribe": {
       "prompt_tokens": 0.006,
-      "completion_tokens": 0.000006
+      "completion_tokens": 0.01
     },
     "gpt-4o-transcribe-diarize": {
       "prompt_tokens": 0.006,
-      "completion_tokens": 0.000006
+      "completion_tokens": 0.01
     },
     "gpt-4o-mini-transcribe": {
       "prompt_tokens": 0.003,
-      "completion_tokens": 0.000003
+      "completion_tokens": 0.005
     },
     "Medium": {
       "prompt_tokens": 0.000011,
@@ -222,15 +238,15 @@
     },
     "text-embedding-3-small": {
       "prompt_tokens": 0.00002,
-      "completion_tokens": 0.00001
+      "completion_tokens": 0.0
     },
     "text-embedding-3-large": {
-      "prompt_tokens": 0.00013000000000000002,
-      "completion_tokens": 0.00006500000000000001
+      "prompt_tokens": 0.00013,
+      "completion_tokens": 0.0
     },
     "text-embedding-ada-002": {
       "prompt_tokens": 0.0001,
-      "completion_tokens": 0.00005
+      "completion_tokens": 0.0
     },
     "chatgpt-4o-latest": {
       "prompt_tokens": 0.005,
