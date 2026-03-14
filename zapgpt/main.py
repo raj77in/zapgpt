@@ -437,7 +437,7 @@ else:
     logger.debug(f"Loaded {len(prompt_jsons)} prompts from {USER_PROMPTS_DIR}")
 
 
-def show_complete_prompt(prompt_name, override_model=None):
+def show_complete_prompt(prompt_name, override_model=None, include_default_prompt=True):
     """
     Display the complete prompt that would be sent to the LLM.
     Args:
@@ -456,8 +456,12 @@ def show_complete_prompt(prompt_name, override_model=None):
     model = override_model or prompt_data.get("model", "openai/gpt-4o-mini")
     assistant_input = prompt_data.get("assistant_input", None)
 
-    # Add common_base if it exists and this isn't the common_base prompt itself
-    if prompt_name != "common_base" and "common_base" in prompt_jsons:
+    # Add common_base if requested and this isn't the common_base prompt itself
+    if (
+        include_default_prompt
+        and prompt_name != "common_base"
+        and "common_base" in prompt_jsons
+    ):
         common_base_prompt = prompt_jsons["common_base"].get("system_prompt", "")
         if common_base_prompt:
             system_prompt = f"{common_base_prompt}\n\n{system_prompt}"
@@ -491,6 +495,59 @@ def show_complete_prompt(prompt_name, override_model=None):
         console.print(
             f'[yellow]💡 Override model:[/yellow] zapgpt --use-prompt {prompt_name} -m your-model "Your question"'
         )
+
+
+def resolve_prompt_selection(
+    prompt_names,
+    prompt_definitions,
+    base_system_prompt=None,
+    default_model=None,
+    include_default_prompt=True,
+):
+    """Resolve one or more prompt names into a combined system prompt and metadata."""
+    names = []
+    if prompt_names:
+        if isinstance(prompt_names, str):
+            names = [prompt_names]
+        else:
+            names = list(prompt_names)
+
+    combined_parts = []
+    assistant_inputs = []
+    selected_model = default_model
+
+    if base_system_prompt:
+        combined_parts.append(base_system_prompt)
+
+    if include_default_prompt and "common_base" in prompt_definitions:
+        common_base_prompt = prompt_definitions["common_base"].get("system_prompt", "")
+        if common_base_prompt:
+            combined_parts.append(common_base_prompt)
+
+    for prompt_name in names:
+        if prompt_name not in prompt_definitions:
+            raise ValueError(
+                f"Prompt '{prompt_name}' not found. Available: {list(prompt_definitions.keys())}"
+            )
+
+        prompt_data = prompt_definitions[prompt_name]
+        system_prompt = prompt_data.get("system_prompt", "")
+        assistant_input = prompt_data.get("assistant_input")
+        prompt_model = prompt_data.get("model")
+
+        if system_prompt:
+            combined_parts.append(system_prompt)
+        if assistant_input:
+            assistant_inputs.append(assistant_input)
+        if prompt_model:
+            selected_model = prompt_model
+
+    final_system_prompt = "\n\n".join(part for part in combined_parts if part)
+    return {
+        "system_prompt": final_system_prompt or None,
+        "assistant_input": "\n\n".join(assistant_inputs) if assistant_inputs else None,
+        "model": selected_model,
+    }
 
 
 def pretty(x):
@@ -645,6 +702,7 @@ class BaseLLMClient:
         temperature: float = 0.7,
         output: str = "",
         file: Optional[str] = None,
+        files: Optional[list[str]] = None,
         max_tokens: Optional[int] = None,
     ):
         """
@@ -656,10 +714,11 @@ class BaseLLMClient:
             max_tokens (int, optional): Maximum tokens for responses.
             temperature (float, optional): Sampling temperature.
             output (str, optional): Output file path.
-            file (str, optional): Input file path.
+            file (str, optional): Single input file path.
+            files (list[str], optional): Multiple input file paths.
         """
         logger.debug(
-            f"Initializing BaseLLMClient with model={model}, output={output}, file={file}"
+            f"Initializing BaseLLMClient with model={model}, output={output}, file={file}, files={files}"
         )
         self.model = model
         self.system_prompt = system_prompt
@@ -670,13 +729,36 @@ class BaseLLMClient:
         self.prompts_path = self.current_script_path + "/prompts"
         self.output = output
         logger.debug("File is set to {file=}")
+        self.files = []
+        if files:
+            self.files.extend(files)
         if file:
-            self.file = file
-        else:
-            self.file = None
+            self.files.append(file)
+        self.file = self.files[0] if self.files else None
         logger.debug(f"Prompts path is {self.prompts_path=}")
         self.init_db()
         # logger.debug(f"{self.system_prompt=}")
+
+    def _build_file_messages(self):
+        """Build prompt messages for any attached input files."""
+        file_messages = []
+        for file_path in self.files:
+            logger.debug(f"Reading attached file: {file_path}")
+            try:
+                with open(file_path, encoding="utf-8") as f:
+                    file_content = f.read()
+            except Exception as e:
+                logger.critical(f"❌ Failed to read file '{file_path}': {e}")
+                return None
+
+            filename = os.path.basename(file_path)
+            file_messages.append(
+                {
+                    "role": "user",
+                    "content": f"Filename: {filename}\nFile content:\n{file_content}",
+                }
+            )
+        return file_messages
 
     def init_db(self):
         """
@@ -759,17 +841,11 @@ class BaseLLMClient:
         # if model_prompts[self.model]:
         # logger.debug(f"Adding assistant prompt: {model_prompts[self.model]['assistant_input']}")
         # messages.append({"role": "assistant", "content": model_prompts[self.model]['assistant_input']})
-        if self.file:
-            logger.debug(f"File is set to {self.file=}")
-            try:
-                with open(self.file, encoding="utf-8") as f:
-                    file_content = f.read()
-            except Exception as e:
-                logger.critical(f"❌ Failed to read file: {e}")
+        if self.files:
+            file_messages = self._build_file_messages()
+            if file_messages is None:
                 return
-            messages.append(
-                {"role": "user", "content": f"File content:\n{file_content}"}
-            )
+            messages.extend(file_messages)
         logger.debug(f"Created prompt is : {messages=}")
         return messages
 
@@ -1166,6 +1242,7 @@ class OpenAIClient(BaseLLMClient):
         model: str = "openai/gpt-4o-mini",
         api_key: str = None,
         file: str = None,
+        files: Optional[list[str]] = None,
         temperature: int = 0.7,
         system_prompt: str = None,
         output: str = "",
@@ -1178,6 +1255,7 @@ class OpenAIClient(BaseLLMClient):
                 system_prompt=system_prompt,
                 temperature=temperature,
                 file=file,
+                files=files,
                 max_tokens=max_tokens,
             )
         else:
@@ -1186,15 +1264,12 @@ class OpenAIClient(BaseLLMClient):
                 system_prompt=system_prompt,
                 temperature=temperature,
                 file=file,
+                files=files,
             )
         self.api_key = api_key
         # self.system_prompt = system_prompt
         # logger.debug(f"system prompt {self.system_prompt=}")
         self.client = OpenAI(api_key=self.api_key)
-        if file:
-            self.file = file
-        else:
-            self.file = None
         if output:
             self.output = output
             logger.debug(f"No output on screen, {self.output=}")
@@ -1360,6 +1435,7 @@ class OpenRouterClient(BaseLLMClient):
         model: str = "openai/gpt-4o-mini",
         api_key: str = None,
         file: str = None,
+        files: Optional[list[str]] = None,
         temperature: int = 0.7,
         system_prompt: str = None,
         output: str = "",
@@ -1383,6 +1459,7 @@ class OpenRouterClient(BaseLLMClient):
             system_prompt=system_prompt,
             temperature=temperature,
             file=file,
+            files=files,
             max_tokens=max_tokens,
         )
         self.api_key = api_key
@@ -1510,6 +1587,7 @@ class GithubClient(BaseLLMClient):
         model: str = "openai/gpt-4.1",
         api_key: str = None,
         file: str = None,
+        files: Optional[list[str]] = None,
         temperature: float = 0.7,
         system_prompt: str = None,
         output: str = "",
@@ -1534,6 +1612,7 @@ class GithubClient(BaseLLMClient):
             system_prompt=system_prompt,
             temperature=temperature,
             file=file,
+            files=files,
             max_tokens=max_tokens,
         )
         self.api_key = api_key
@@ -1721,6 +1800,7 @@ class LocalClient(BaseLLMClient):
         model: str = "gpt-oss:20b",
         api_key: str = None,
         file: str = None,
+        files: Optional[list[str]] = None,
         temperature: float = 0.7,
         system_prompt: str = None,
         output: str = "",
@@ -1746,6 +1826,7 @@ class LocalClient(BaseLLMClient):
             system_prompt=system_prompt,
             temperature=temperature,
             file=file,
+            files=files,
             max_tokens=max_tokens,
         )
         self.api_key = api_key
@@ -1815,10 +1896,11 @@ def query_llm(
     provider: str = "openai",
     model: str = None,
     system_prompt: str = None,
-    use_prompt: str = None,
+    use_prompt: Union[str, list[str]] = None,
     temperature: float = 0.3,
     quiet: bool = True,
     max_tokens: Optional[int] = None,
+    no_default: bool = False,
 ) -> str:
     """
     Programmatic API to query LLM providers from Python scripts.
@@ -1828,10 +1910,11 @@ def query_llm(
         provider (str): LLM provider (openai, openrouter, together, etc.)
         model (str, optional): Specific model to use
         system_prompt (str, optional): Custom system prompt
-        use_prompt (str, optional): Use a predefined prompt template
+        use_prompt (str or list[str], optional): Use one or more predefined prompt templates
         temperature (float): Response randomness (0.0-1.0)
         max_tokens (int): Maximum response tokens
         quiet (bool): Suppress all output except response
+        no_default (bool): Do not prepend the default `common_base` prompt
 
     Returns:
         str: The LLM response text
@@ -1873,27 +1956,17 @@ def query_llm(
     # Load prompts if using predefined prompt
     final_system_prompt = system_prompt
     final_model = model
-
     if use_prompt:
-        if use_prompt in prompt_jsons:
-            prompt_data = prompt_jsons[use_prompt]
-            final_system_prompt = prompt_data.get("system_prompt", system_prompt)
-            if not model:  # Only use prompt's model if not explicitly provided
-                final_model = prompt_data.get("model")
-
-            # Add common_base if it exists
-            if use_prompt != "common_base" and "common_base" in prompt_jsons:
-                common_base_prompt = prompt_jsons["common_base"].get(
-                    "system_prompt", ""
-                )
-                if common_base_prompt and final_system_prompt:
-                    final_system_prompt = (
-                        f"{common_base_prompt}\n\n{final_system_prompt}"
-                    )
-        else:
-            raise ValueError(
-                f"Prompt '{use_prompt}' not found. Available: {list(prompt_jsons.keys())}"
-            )
+        resolved_prompts = resolve_prompt_selection(
+            use_prompt,
+            prompt_jsons,
+            base_system_prompt=system_prompt,
+            default_model=model,
+            include_default_prompt=not no_default,
+        )
+        final_system_prompt = resolved_prompts["system_prompt"]
+        if not model:
+            final_model = resolved_prompts["model"]
 
     # Set default model if none specified
     if not final_model:
@@ -2017,8 +2090,15 @@ def main():
         "-up",
         "--use-prompt",
         type=match_abbreviation(prompt_choices),
-        default=None,
-        help=f"Specify a prompt type. Options: {', '.join(prompt_choices)}. Default is 'general'.",
+        action="append",
+        default=[],
+        help=f"Specify one or more prompt types. Repeat the flag to concatenate prompts. Options: {', '.join(prompt_choices)}.",
+    )
+    parser.add_argument(
+        "-ndp",
+        "--no-default",
+        action="store_true",
+        help="Do not prepend the default common_base prompt.",
     )
     parser.add_argument(
         "-xai",
@@ -2073,6 +2153,13 @@ def main():
         help="Specify days to retrieve usage from OpenAI API.",
     )
     parser.add_argument("-f", "--file", default=None, help="Path to the file")
+    parser.add_argument(
+        "--files",
+        nargs=2,
+        metavar=("FILE1", "FILE2"),
+        default=None,
+        help="Provide two files whose contents will be appended to the prompt with filenames.",
+    )
     parser.add_argument(
         "-ll",
         "--log-level",
@@ -2224,46 +2311,36 @@ def main():
         else:
             logger.debug(f"Setting output file as {args.output=}")
     system_prompt = None
-    # If --use-prompt is set, load system_prompt and model from the prompt's JSON
-    if args.use_prompt:
-        prompt_name = args.use_prompt
-        if prompt_name in prompt_jsons:
-            # Load the selected prompt
-            prompt_data = prompt_jsons[prompt_name]
-            system_prompt = prompt_data.get("system_prompt", "")
-
-            # Always prepend common_base if it's not the base prompt itself
-            if prompt_name != "common_base" and "common_base" in prompt_jsons:
-                common_base_prompt = prompt_jsons["common_base"].get(
-                    "system_prompt", ""
-                )
-                if common_base_prompt:
-                    system_prompt = f"{common_base_prompt}\n\n{system_prompt}"
-                    logger.debug(f"Combined 'common_base' with '{prompt_name}' prompt")
-
-            # User-provided model takes precedence over prompt's model
-            if model != "openai/gpt-4.1":  # User explicitly provided a model
-                model = model
-                logger.info(
-                    f"Using user-specified model '{model}' (overriding prompt default)"
-                )
-            else:
-                model = prompt_data.get("model", model)
-                logger.debug(f"Using model from prompt '{prompt_name}': '{model}'")
-
-            if args.explain_AI:
-                system_prompt += "\n\nImportant! Always start with a json of steps and thoughts that you took to get to response, json should have step number and your thought process.\n"
-        else:
-            logger.error(f"Prompt '{prompt_name}' not found in prompts directory.")
-            system_prompt = ""
-            model = model
-    else:
-        model = model
-
-    # Prepare assistant_input if present
     assistant_input = None
-    if args.use_prompt and prompt_name in prompt_jsons:
-        assistant_input = prompt_jsons[prompt_name].get("assistant_input", None)
+    if args.use_prompt:
+        try:
+            resolved_prompts = resolve_prompt_selection(
+                args.use_prompt,
+                prompt_jsons,
+                default_model=model,
+                include_default_prompt=not args.no_default,
+            )
+        except ValueError as e:
+            logger.error(str(e))
+            sys.exit(1)
+
+        system_prompt = resolved_prompts["system_prompt"]
+        assistant_input = resolved_prompts["assistant_input"]
+
+        if model != "openai/gpt-4.1":  # User explicitly provided a model
+            logger.info(
+                f"Using user-specified model '{model}' (overriding prompt defaults)"
+            )
+        else:
+            model = resolved_prompts["model"] or model
+            logger.debug(f"Using model from prompts: '{model}'")
+
+        if args.explain_AI:
+            if system_prompt:
+                system_prompt += "\n\n"
+            else:
+                system_prompt = ""
+            system_prompt += "Important! Always start with a json of steps and thoughts that you took to get to response, json should have step number and your thought process.\n"
 
     # Handle commands that don't require API keys first
     if args.config:
@@ -2273,7 +2350,9 @@ def main():
         return
 
     if args.show_prompt:
-        show_complete_prompt(args.show_prompt, model)
+        show_complete_prompt(
+            args.show_prompt, model, include_default_prompt=not args.no_default
+        )
         return
 
     # Now handle commands that need API access
@@ -2290,9 +2369,15 @@ def main():
             output.warning(f"Please set the environment variable: {required_env_var}")
             sys.exit(1)
 
+    input_files = []
     if args.file:
-        if not os.path.exists(args.file):
-            logger.error(f"File name {args.file} does not exists, exiting")
+        input_files.append(args.file)
+    if args.files:
+        input_files.extend(args.files)
+
+    for input_file in input_files:
+        if not os.path.exists(input_file):
+            logger.error(f"File name {input_file} does not exists, exiting")
             sys.exit(1)
 
     llm_client = client_class(
@@ -2301,6 +2386,7 @@ def main():
         system_prompt=system_prompt,
         temperature=temp,
         file=args.file,
+        files=args.files,
         output=args.output,
         max_tokens=args.max_tokens,
         url=args.url,
