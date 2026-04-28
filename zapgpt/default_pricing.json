@@ -30,7 +30,7 @@
     },
     "gpt-5.2-pro": {
       "prompt_tokens": 21,
-      "completion_tokens": 0.0,
+      "completion_tokens": 0.0
     },
     "gpt-5.1": {
       "prompt_tokens": 1.25,
