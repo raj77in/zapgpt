@@ -36,9 +36,11 @@ Dependencies:
 # ===============================
 # Standard Library Imports
 # ===============================
+import base64
 import glob
 import json  # For config and API responses
 import logging  # For logging actions and errors
+import mimetypes
 import os  # For environment variables and file paths
 import re  # For regex operations
 import sqlite3  # For usage tracking
@@ -703,6 +705,8 @@ class BaseLLMClient:
         output: str = "",
         file: Optional[str] = None,
         files: Optional[list[str]] = None,
+        image: Optional[str] = None,
+        images: Optional[list[str]] = None,
         max_tokens: Optional[int] = None,
     ):
         """
@@ -716,9 +720,11 @@ class BaseLLMClient:
             output (str, optional): Output file path.
             file (str, optional): Single input file path.
             files (list[str], optional): Multiple input file paths.
+            image (str, optional): Single image file path.
+            images (list[str], optional): Multiple image file paths.
         """
         logger.debug(
-            f"Initializing BaseLLMClient with model={model}, output={output}, file={file}, files={files}"
+            f"Initializing BaseLLMClient with model={model}, output={output}, file={file}, files={files}, image={image}, images={images}"
         )
         self.model = model
         self.system_prompt = system_prompt
@@ -735,6 +741,12 @@ class BaseLLMClient:
         if file:
             self.files.append(file)
         self.file = self.files[0] if self.files else None
+        self.images = []
+        if images:
+            self.images.extend(images)
+        if image:
+            self.images.append(image)
+        self.image = self.images[0] if self.images else None
         logger.debug(f"Prompts path is {self.prompts_path=}")
         self.init_db()
         # logger.debug(f"{self.system_prompt=}")
@@ -759,6 +771,36 @@ class BaseLLMClient:
                 }
             )
         return file_messages
+
+    def _build_image_data_url(self, image_path: str) -> str:
+        """Read an image file and return a base64 data URL for vision-capable models."""
+        mime_type, _ = mimetypes.guess_type(image_path)
+        if not mime_type or not mime_type.startswith("image/"):
+            raise ValueError(f"Unsupported image file type: {image_path}")
+
+        try:
+            with open(image_path, "rb") as image_file:
+                encoded = base64.b64encode(image_file.read()).decode("utf-8")
+        except Exception as e:
+            logger.critical(f"❌ Failed to read image '{image_path}': {e}")
+            raise
+
+        return f"data:{mime_type};base64,{encoded}"
+
+    def _build_user_content(self, query: str):
+        """Build text-only or multimodal user content for chat completions."""
+        if not self.images:
+            return query
+
+        content = [{"type": "text", "text": query}]
+        for image_path in self.images:
+            content.append(
+                {
+                    "type": "image_url",
+                    "image_url": {"url": self._build_image_data_url(image_path)},
+                }
+            )
+        return content
 
     def init_db(self):
         """
@@ -837,7 +879,7 @@ class BaseLLMClient:
         messages = []
         if self.system_prompt:
             messages.append({"role": "system", "content": self.system_prompt})
-        messages.append({"role": "user", "content": query})
+        messages.append({"role": "user", "content": self._build_user_content(query)})
         # if model_prompts[self.model]:
         # logger.debug(f"Adding assistant prompt: {model_prompts[self.model]['assistant_input']}")
         # messages.append({"role": "assistant", "content": model_prompts[self.model]['assistant_input']})
@@ -1243,6 +1285,8 @@ class OpenAIClient(BaseLLMClient):
         api_key: str = None,
         file: str = None,
         files: Optional[list[str]] = None,
+        image: Optional[str] = None,
+        images: Optional[list[str]] = None,
         temperature: int = 0.7,
         system_prompt: str = None,
         output: str = "",
@@ -1256,6 +1300,8 @@ class OpenAIClient(BaseLLMClient):
                 temperature=temperature,
                 file=file,
                 files=files,
+                image=image,
+                images=images,
                 max_tokens=max_tokens,
             )
         else:
@@ -1265,6 +1311,8 @@ class OpenAIClient(BaseLLMClient):
                 temperature=temperature,
                 file=file,
                 files=files,
+                image=image,
+                images=images,
             )
         self.api_key = api_key
         # self.system_prompt = system_prompt
@@ -1436,6 +1484,8 @@ class OpenRouterClient(BaseLLMClient):
         api_key: str = None,
         file: str = None,
         files: Optional[list[str]] = None,
+        image: Optional[str] = None,
+        images: Optional[list[str]] = None,
         temperature: int = 0.7,
         system_prompt: str = None,
         output: str = "",
@@ -1460,6 +1510,8 @@ class OpenRouterClient(BaseLLMClient):
             temperature=temperature,
             file=file,
             files=files,
+            image=image,
+            images=images,
             max_tokens=max_tokens,
         )
         self.api_key = api_key
@@ -1588,6 +1640,8 @@ class GithubClient(BaseLLMClient):
         api_key: str = None,
         file: str = None,
         files: Optional[list[str]] = None,
+        image: Optional[str] = None,
+        images: Optional[list[str]] = None,
         temperature: float = 0.7,
         system_prompt: str = None,
         output: str = "",
@@ -1613,6 +1667,8 @@ class GithubClient(BaseLLMClient):
             temperature=temperature,
             file=file,
             files=files,
+            image=image,
+            images=images,
             max_tokens=max_tokens,
         )
         self.api_key = api_key
@@ -1801,6 +1857,8 @@ class LocalClient(BaseLLMClient):
         api_key: str = None,
         file: str = None,
         files: Optional[list[str]] = None,
+        image: Optional[str] = None,
+        images: Optional[list[str]] = None,
         temperature: float = 0.7,
         system_prompt: str = None,
         output: str = "",
@@ -1827,6 +1885,8 @@ class LocalClient(BaseLLMClient):
             temperature=temperature,
             file=file,
             files=files,
+            image=image,
+            images=images,
             max_tokens=max_tokens,
         )
         self.api_key = api_key
@@ -1897,6 +1957,8 @@ def query_llm(
     model: str = None,
     system_prompt: str = None,
     use_prompt: Union[str, list[str]] = None,
+    image: Optional[str] = None,
+    images: Optional[list[str]] = None,
     temperature: float = 0.3,
     quiet: bool = True,
     max_tokens: Optional[int] = None,
@@ -1911,6 +1973,8 @@ def query_llm(
         model (str, optional): Specific model to use
         system_prompt (str, optional): Custom system prompt
         use_prompt (str or list[str], optional): Use one or more predefined prompt templates
+        image (str, optional): Path to an image file to send with the prompt
+        images (list[str], optional): Paths to image files to send with the prompt
         temperature (float): Response randomness (0.0-1.0)
         max_tokens (int): Maximum response tokens
         quiet (bool): Suppress all output except response
@@ -1933,6 +1997,15 @@ def query_llm(
         raise ValueError(
             f"Unsupported provider: {provider}. Available: {list(provider_map.keys())}"
         )
+
+    image_paths = []
+    if images:
+        image_paths.extend(images)
+    if image:
+        image_paths.append(image)
+    for image_path in image_paths:
+        if not os.path.exists(image_path):
+            raise FileNotFoundError(f"Image file does not exist: {image_path}")
 
     # Check API key
     required_env_var = provider_env_vars.get(provider)
@@ -1980,6 +2053,7 @@ def query_llm(
             api_key=api_key,
             system_prompt=final_system_prompt,
             temperature=temperature,
+            images=image_paths or None,
             max_tokens=max_tokens,
         )
     else:
@@ -1988,6 +2062,7 @@ def query_llm(
             api_key=api_key,
             system_prompt=final_system_prompt,
             temperature=temperature,
+            images=image_paths or None,
         )
 
     # Send request and return response
@@ -2159,6 +2234,13 @@ def main():
         metavar=("FILE1", "FILE2"),
         default=None,
         help="Provide two files whose contents will be appended to the prompt with filenames.",
+    )
+    parser.add_argument(
+        "-img",
+        "--image",
+        action="append",
+        default=[],
+        help="Path to an image file to send with the prompt. Repeat for multiple images.",
     )
     parser.add_argument(
         "-ll",
@@ -2380,6 +2462,11 @@ def main():
             logger.error(f"File name {input_file} does not exists, exiting")
             sys.exit(1)
 
+    for image_file in args.image:
+        if not os.path.exists(image_file):
+            logger.error(f"Image file {image_file} does not exist, exiting")
+            sys.exit(1)
+
     llm_client = client_class(
         model=model,
         api_key=api_key,
@@ -2387,6 +2474,7 @@ def main():
         temperature=temp,
         file=args.file,
         files=args.files,
+        images=args.image,
         output=args.output,
         max_tokens=args.max_tokens,
         url=args.url,
