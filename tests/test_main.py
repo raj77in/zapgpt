@@ -7,8 +7,8 @@ import os
 import sys
 from argparse import ArgumentTypeError
 from importlib import import_module
-from unittest.mock import patch
 
+## from unittest.mock import patch
 import pytest
 
 # Add the parent directory to the path to import the module
@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from zapgpt.main import (
     BaseLLMClient,
     DeepInfraClient,
-    OpenAIClient,
+    ## OpenAIClient,
     OpenRouterClient,
     OutputHandler,
     ReplicateClient,
