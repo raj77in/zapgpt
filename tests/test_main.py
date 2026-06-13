@@ -6,6 +6,7 @@ import json
 import os
 import sys
 from argparse import ArgumentTypeError
+from importlib import import_module
 from unittest.mock import patch
 
 import pytest
@@ -84,8 +85,9 @@ def mock_config_dir(tmp_path, monkeypatch):
         f.write(test_prompt)
 
     # Patch the config directory paths
-    monkeypatch.setattr("zapgpt.main.CONFIG_DIR", config_dir)
-    monkeypatch.setattr("zapgpt.main.USER_PROMPTS_DIR", str(prompts_dir))
+    main_module = import_module("zapgpt.main")
+    monkeypatch.setattr(main_module, "CONFIG_DIR", config_dir)
+    monkeypatch.setattr(main_module, "USER_PROMPTS_DIR", str(prompts_dir))
 
     return config_dir
 
@@ -221,57 +223,38 @@ def test_match_abbreviation():
 
 
 def test_ensure_config_directory(tmp_path, monkeypatch):
-    # Mock the home directory and required attributes
-    monkeypatch.setattr("os.path.expanduser", lambda _: str(tmp_path))
-
-    # Import the module after patching to ensure the patch takes effect
-    import sys
-
-    if "zapgpt.main" in sys.modules:
-        del sys.modules["zapgpt.main"]
-
-    # Set environment variables for config paths
-    import os
-
     config_dir = tmp_path / ".config" / "zapgpt"
-    os.environ["ZAPGPT_CONFIG_DIR"] = str(config_dir)
-
-    # Import after setting environment variables
     from unittest.mock import MagicMock
 
-    from zapgpt.main import CONFIG_DIR, USER_PROMPTS_DIR, ensure_config_directory
+    main_module = import_module("zapgpt.main")
+
+    prompts_dir = config_dir / "prompts"
+    monkeypatch.setattr(main_module, "CONFIG_DIR", str(config_dir))
+    monkeypatch.setattr(main_module, "USER_PROMPTS_DIR", str(prompts_dir))
 
     # Create a mock logger
     mock_logger = MagicMock()
 
     # Ensure the directory doesn't exist yet
-    if os.path.exists(CONFIG_DIR):
+    if os.path.exists(config_dir):
         import shutil
 
-        shutil.rmtree(CONFIG_DIR)
+        shutil.rmtree(config_dir)
 
     # Call the function with the mock logger
-    ensure_config_directory(logger_instance=mock_logger)
+    main_module.ensure_config_directory(logger_instance=mock_logger)
 
     # Verify the directories were created
-    assert os.path.exists(CONFIG_DIR), (
-        f"Config directory was not created at {CONFIG_DIR}"
-    )
-    assert os.path.exists(USER_PROMPTS_DIR), (
-        f"Prompts directory was not created at {USER_PROMPTS_DIR}"
-    )
+    assert config_dir.exists()
+    assert prompts_dir.exists()
 
     # Call again to test idempotency (should not raise exceptions)
-    ensure_config_directory(logger_instance=mock_logger)
+    main_module.ensure_config_directory(logger_instance=mock_logger)
 
 
 def test_load_pricing_data(mock_config_dir):
     """Test loading pricing data from the config directory."""
     import json
-    import sys
-
-    if "zapgpt.main" in sys.modules:
-        del sys.modules["zapgpt.main"]
 
     # Create test pricing data matching the actual default pricing structure
     test_pricing = {
@@ -330,31 +313,23 @@ def test_load_pricing_data(mock_config_dir):
 
 
 def test_show_complete_prompt(mock_config_dir, capsys, monkeypatch):
-    # Import the module after setting up the mock config
-    import sys
-
-    if "zapgpt.main" in sys.modules:
-        del sys.modules["zapgpt.main"]
-
     # Mock the console.print function to capture output
     captured_output = []
 
     def mock_console_print(*args, **kwargs):
         captured_output.append(" ".join(str(a) for a in args))
 
-    # Import the module and patch the console
-    import zapgpt.main
-
-    monkeypatch.setattr("zapgpt.main.console.print", mock_console_print)
+    main_module = import_module("zapgpt.main")
+    monkeypatch.setattr(main_module.console, "print", mock_console_print)
 
     # Create a test prompt file
     test_prompt = {"system_prompt": "This is a test prompt", "model": "test-model"}
 
     # Add the test prompt to the prompt_jsons
-    zapgpt.main.prompt_jsons["test_prompt"] = test_prompt
+    main_module.prompt_jsons["test_prompt"] = test_prompt
 
     # Test showing the prompt
-    zapgpt.main.show_complete_prompt("test_prompt", "gpt-4")
+    main_module.show_complete_prompt("test_prompt", "gpt-4")
 
     # Verify the output contains expected content
     output = "\n".join(captured_output)
@@ -364,13 +339,13 @@ def test_show_complete_prompt(mock_config_dir, capsys, monkeypatch):
 
 # Test BaseLLMClient
 class TestBaseLLMClient:
-    def test_init(self):
+    def test_init(self, setup_test_db):
         client = BaseLLMClient("test-model")
         assert client.model == "test-model"
         assert client.temperature == 0.7
 
         # Check that the database was created
-        assert os.path.exists(os.path.expanduser("~/.config/zapgpt/gpt_usage.db"))
+        assert os.path.exists(setup_test_db)
 
     def test_count_tokens(self):
         client = BaseLLMClient("test-model")

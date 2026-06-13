@@ -14,9 +14,11 @@ A minimalist CLI tool to chat with LLMs from your terminal. Supports multiple pr
          GPT on the CLI. Like a boss.
 ```
 
-`zapgpt` is a minimalist CLI tool to chat with LLMs from your terminal. No bloated UI, just fast raw GPT magic, straight from the shell. With pre-cooked system prompt for Ethical hacking, code, file attachment and a good default prompt and usage tracking, I hope you find it useful. No extra features or frills. Modify it as you need it with a simple one file script.
+`zapgpt` is a CLI and Python API for querying multiple LLM providers. It
+supports reusable system prompts, text and image attachments, local usage
+tracking, quiet output for automation, and provider-specific configuration.
 
-Updated to version v2.
+Current package version: v3.6.
 
 ## Introduction video
 
@@ -24,7 +26,7 @@ Updated to version v2.
 
 ## 💾 Requirements
 
-* Python 3.8+
+* Python 3.9+
 * `uv` (recommended - blazingly fast Python package manager)
 * pip (alternative to uv)
 
@@ -62,7 +64,7 @@ uv tool install zapgpt
 **With uv (recommended):**
 
 ```bash
-git clone https://github.com/yourusername/zapgpt.git
+git clone https://github.com/raj77in/zapgpt.git
 cd zapgpt
 uv sync
 uv run zapgpt "test"
@@ -74,7 +76,7 @@ uv run zapgpt "test"
 **With pip:**
 
 ```bash
-git clone https://github.com/yourusername/zapgpt.git
+git clone https://github.com/raj77in/zapgpt.git
 cd zapgpt
 pip install -e .
 ```
@@ -82,7 +84,7 @@ pip install -e .
 ### Option 4: From Source (Classic method)
 
 ```bash
-git clone https://github.com/yourusername/zapgpt.git
+git clone https://github.com/raj77in/zapgpt.git
 cd zapgpt
 python3 -m venv .venv
 source .venv/bin/activate
@@ -169,6 +171,9 @@ echo "Result: $RESPONSE"
 # Send file contents to LLM
 zapgpt --file /path/to/file.txt "Analyze this log file"
 
+# Compare exactly two files. Each filename is included in the prompt.
+zapgpt --files before.py after.py "Explain the changes"
+
 # Analyze command output
 nmap -sV target.com > scan_results.txt
 zapgpt -f scan_results.txt --use-prompt vuln_assessment "Analyze these scan results"
@@ -177,6 +182,37 @@ zapgpt -f scan_results.txt --use-prompt vuln_assessment "Analyze these scan resu
 for file in *.log; do
     zapgpt -q -f "$file" "Summarize security events" >> summary.txt
 done
+```
+
+### Image Input
+
+Use `--image` once or repeat it to send multiple images to a vision-capable
+model:
+
+```bash
+zapgpt --image screenshot.png "Describe this screenshot"
+zapgpt -m gpt-4o \
+  --image front.jpg \
+  --image back.jpg \
+  "Compare these images"
+```
+
+The image is embedded as a base64 data URL. Supported file types are determined
+from the filename extension and the selected provider/model must support image
+input.
+
+### Combining Prompts
+
+Repeat `--use-prompt` to concatenate prompt templates. By default,
+`common_base` is prepended; use `--no-default` to omit it.
+
+```bash
+zapgpt \
+  --use-prompt coding \
+  --use-prompt vuln_assessment \
+  "Review this code"
+
+zapgpt --no-default --use-prompt coding "Review this function"
 ```
 
 ### Automation Examples
@@ -265,6 +301,20 @@ response = query_llm(
     temperature=0.8
 )
 
+# Combine prompts without prepending common_base
+response = query_llm(
+    "Review this function",
+    use_prompt=["coding", "vuln_assessment"],
+    no_default=True,
+)
+
+# Send one or more images
+response = query_llm(
+    "Compare these diagrams",
+    model="gpt-4o",
+    images=["architecture-v1.png", "architecture-v2.png"],
+)
+
 # Error handling
 try:
     response = query_llm("Hello", provider="openai")
@@ -282,10 +332,13 @@ except ValueError as e:
 | `provider` | str | "openai" | LLM provider to use |
 | `model` | str | None | Specific model (overrides prompt default) |
 | `system_prompt` | str | None | Custom system prompt |
-| `use_prompt` | str | None | Use predefined prompt template |
+| `use_prompt` | str or list[str] | None | Use one or more predefined prompt templates |
+| `image` | str | None | Path to one image |
+| `images` | list[str] | None | Paths to multiple images |
 | `temperature` | float | 0.3 | Response randomness (0.0-1.0) |
-| `max_tokens` | int | 4096 | Maximum response length |
+| `max_tokens` | int | None | Maximum response length |
 | `quiet` | bool | True | Suppress logging output |
+| `no_default` | bool | False | Do not prepend the `common_base` prompt |
 
 ### Environment Variables
 
@@ -351,10 +404,13 @@ monitor_logs('/var/log/auth.log')
 
 ## 🛠️ Features
 
-* Context-aware prompts (memory)
-* Easily customizable for your LLM endpoints
-* Show your current usage.
-* Optional pre-cooked system prompts.
+* OpenAI, OpenRouter, Together, Replicate, DeepInfra, GitHub AI, and local providers
+* Repeatable prompt templates with optional `common_base`
+* Single-file and two-file text attachments
+* Single and multiple image attachments for vision-capable models
+* Quiet output for shell automation
+* Local usage and estimated cost tracking
+* Custom prompts and provider defaults in `~/.config/zapgpt/`
 
 ## 📝 Configuration & Prompts
 
@@ -385,14 +441,30 @@ On first run, zapgpt automatically copies default prompts to your config directo
 * `default` - General purpose prompt
 * `common_base` - Base prompt added to all others
 
-### v2 Features
+## Running Tests
 
-* Script now uses class and is much more well organized.
-* Prompts are not hard-coded in the script. You can simply drop in any new
-  system prompt in prompts folder and use it.
-* ✅ **Multi-Provider Support**: Supports OpenAI, OpenRouter, Together, Replicate, DeepInfra, and GitHub AI
-* ✅ **Easy Provider Switching**: Use `--provider` flag to switch between providers
-* ✅ **Model Selection**: Override model with `-m` flag for any provider
+The test suite uses mocked provider clients and does not require network access
+or valid API keys.
+
+```bash
+# Local environment
+python -m pip install -e ".[test]"
+python -m pytest tests -q
+
+# uv
+uv sync --all-extras --dev
+uv run pytest tests -q
+
+# Auto-detect Podman or Docker
+./run_tests_in_docker.sh
+
+# Select an engine explicitly
+CONTAINER_ENGINE=docker ./run_tests_in_docker.sh
+CONTAINER_ENGINE=podman ./run_tests_in_docker.sh
+```
+
+GitHub Actions runs the test matrix on Python 3.9 through 3.13 and also builds
+and executes `Dockerfile.test`.
 
 ## 🧪 Example
 

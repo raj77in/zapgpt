@@ -200,7 +200,7 @@ class TestCLIAutomationExamples:
 
         try:
             env = os.environ.copy()
-            env["OPENAI_API_KEY"] = "dummy_key"
+            env.pop("OPENAI_API_KEY", None)
 
             # Test quiet mode structure
             result = run_zapgpt_command(
@@ -232,7 +232,7 @@ class TestCLIAutomationExamples:
                     temp_files.append(f.name)
 
             env = os.environ.copy()
-            env["OPENAI_API_KEY"] = "dummy_key"
+            env.pop("OPENAI_API_KEY", None)
 
             # Test batch processing structure
             for temp_file in temp_files:

@@ -5,9 +5,13 @@ Pytest configuration and fixtures for ZapGPT tests
 
 import os
 import tempfile
+from importlib import import_module
 from pathlib import Path
+from types import SimpleNamespace
 
+import httpx
 import pytest
+from openai import AuthenticationError
 
 # Set up test environment
 os.environ["OPENAI_API_KEY"] = "dummy_key_for_testing"
@@ -38,6 +42,48 @@ def setup_test_db(tmp_path, monkeypatch):
 
     # Also set it in os.environ for any code that might use it directly
     os.environ["ZAPGPT_DB_PATH"] = str(test_db_path)
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    main_module = import_module("zapgpt.main")
+
+    monkeypatch.setattr(main_module, "DB_FILE", str(test_db_path))
+    monkeypatch.setattr(main_module, "CONFIG_DIR", str(tmp_path / ".config" / "zapgpt"))
+    monkeypatch.setattr(
+        main_module,
+        "USER_PROMPTS_DIR",
+        str(Path(main_module.__file__).parent / "prompts"),
+    )
+
+    class FakeTokenizer:
+        def encode(self, text):
+            return text.split()
+
+    monkeypatch.setattr(
+        main_module.BaseLLMClient,
+        "get_tokenizer",
+        lambda self, model_name: FakeTokenizer(),
+    )
+
+    class FakeCompletions:
+        def create(self, **kwargs):
+            request = httpx.Request(
+                "POST", "https://api.openai.com/v1/chat/completions"
+            )
+            response = httpx.Response(401, request=request)
+            raise AuthenticationError(
+                "Invalid API key used by the test suite",
+                response=response,
+                body={"error": {"message": "Invalid API key"}},
+            )
+
+    class FakeOpenAI:
+        def __init__(self, *args, **kwargs):
+            self.chat = SimpleNamespace(completions=FakeCompletions())
+            self.models = SimpleNamespace(
+                list=lambda: SimpleNamespace(data=[]),
+            )
+
+    monkeypatch.setattr(main_module, "OpenAI", FakeOpenAI)
 
     # Verify the file is writable
     assert test_db_path.parent.is_dir(), (

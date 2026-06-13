@@ -102,9 +102,8 @@ class TestCLIFileInput:
             temp_file = f.name
 
         try:
-            # Set dummy API key
             env = os.environ.copy()
-            env["OPENAI_API_KEY"] = "dummy_key_for_testing"
+            env.pop("OPENAI_API_KEY", None)
 
             # Test file input (will fail at API call but structure should work)
             result = run_zapgpt_command(
