@@ -373,7 +373,7 @@ class TestBaseLLMClient:
         assert abs(client.get_price("unknown-model", 1000, 500) - 0.045) < 0.001
 
 
-'''
+"""
 # Test OpenAIClient
 class TestOpenAIClient:
     def test_init(self, mock_config_dir):
@@ -395,7 +395,8 @@ class TestOpenAIClient:
     def test_get_endpoint(self):
         client = OpenAIClient(api_key="test-key")
         assert "api.openai.com" in client.get_endpoint()
-'''
+"""
+
 
 # Test OpenRouterClient
 class TestOpenRouterClient:
