@@ -1124,7 +1124,8 @@ class BaseLLMClient:
                     else str(m.context_length)
                 )
                 logger.debug(f"{m.context_length=} and {cl=}")
-                rich_table.add_row(m.id, m.created, cl, m.architecture["modality"])
+                arch = m.architecture["modality"] if "architecture" in m else "NA"
+                rich_table.add_row(m.id, m.created, cl, arch)
             else:
                 rich_table.add_row(m.id, m.created)
         # print(tabulate(clean_table, headers=headers, tablefmt="fancy_grid", maxcolwidths=[20, 20, 35, 10, 10, 35, 10] ))
@@ -1890,6 +1891,7 @@ class LocalClient(BaseLLMClient):
             max_tokens=max_tokens,
         )
         self.api_key = api_key
+        url = url or getattr(self, "DEFAULT_URL", "localhost:11434")
         logger.debug("using auto routing with lowest cost model")
         # self.system_prompt = system_prompt
         # logger.debug(f"system prompt {self.system_prompt=}")
@@ -1912,6 +1914,25 @@ class LocalClient(BaseLLMClient):
                 "prompt_tokens": 0.0,
                 "completion_tokens": 0.0,
             }
+
+
+class OmniRouteClient(LocalClient):
+    """Client for an OpenAI-compatible OmniRoute server."""
+
+    DEFAULT_URL = "127.0.0.1:20128"
+
+    def __init__(
+        self,
+        model: str = "gpt-oss:20b",
+        api_key: str = None,
+        url: str = DEFAULT_URL,
+        **kwargs,
+    ):
+        super().__init__(model=model, api_key=api_key, url=url, **kwargs)
+
+    def get_endpoint(self, url: str = None) -> str:
+        """Return OmniRoute's OpenAI-compatible API base URL."""
+        return f"http://{url or self.DEFAULT_URL}/v1"
 
 
 def get_prompt(filename):
@@ -1937,6 +1958,7 @@ provider_map = {
     "deepinfra": DeepInfraClient,
     "github": GithubClient,
     "local": LocalClient,
+    "omniroute": OmniRouteClient,
 }
 
 # Mapping of providers to their required environment variables
@@ -1948,6 +1970,7 @@ provider_env_vars = {
     "deepinfra": "DEEPINFRA_API_TOKEN",
     "github": "GITHUB_KEY",
     "local": "OLLAMA_KEY",
+    "omniroute": "OMNIROUTE_API_KEY",
 }
 
 
@@ -2012,7 +2035,7 @@ def query_llm(
     api_key = None
     if required_env_var:
         api_key = os.getenv(required_env_var)
-        if not api_key:
+        if not api_key and provider not in {"local", "omniroute"}:
             raise OSError(f"Missing required environment variable: {required_env_var}")
 
     # Load prompts for use_prompt functionality
@@ -2307,8 +2330,8 @@ def main():
         "-url",
         "--url",
         type=str,
-        default="localhost:11434",
-        help="Set the URL for local provider if not localhost:11434",
+        default=None,
+        help="Override the server URL (local: localhost:11434; omniroute: 127.0.0.1:20128).",
     )
 
     args = parser.parse_args()
@@ -2445,7 +2468,7 @@ def main():
     api_key = None
     if required_env_var:
         api_key = os.getenv(required_env_var)
-        if not api_key and provider != "local":
+        if not api_key and provider not in {"local", "omniroute"}:
             logger.error(f"Missing required environment variable: {required_env_var}")
             output.error(f"Missing API key for {provider}")
             output.warning(f"Please set the environment variable: {required_env_var}")
