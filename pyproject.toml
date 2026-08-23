@@ -93,6 +93,18 @@ zapgpt = [
 [tool.ruff]
 line-length = 88
 target-version = "py39"
+include = [
+    "*.py",
+    "*.pyi",
+    "*.ipynb",
+    "**/pyproject.toml",
+]
+exclude = [
+    "docs/*",
+    "SECURITY.md",
+    "*.md",
+    "zapgpt/prompts/*"
+]
 
 [tool.ruff.lint]
 select = [
