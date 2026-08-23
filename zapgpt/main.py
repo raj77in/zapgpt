@@ -2550,7 +2550,10 @@ def main():
             ):
                 llm_client.chat_history.clear()
                 llm_client.chat_history.append(
-                    {"role": "assistant", "content": assistant_input}
+                    {
+                        "role": "assistant",
+                        "content": assistant_input,
+                    }
                 )
             else:
                 # For clients that use prompt construction, prepend assistant_input to the prompt
