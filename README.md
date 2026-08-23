@@ -2,7 +2,7 @@
 
 ![Intro image](intro.png)
 
-A minimalist CLI tool to chat with LLMs from your terminal. Supports multiple providers including OpenAI, OpenRouter, Together, Replicate, DeepInfra, and GitHub AI.
+A minimalist CLI tool to chat with LLMs from your terminal. Supports multiple providers including OpenAI, OpenRouter, Together, Replicate, DeepInfra, and GitHub AI. For local provider like Ollama, you can use provider local and for omniroute, you can use omniroute as provider.
 
 ```plaintext
 ███████╗ █████╗ ██████╗  ██████╗ ██████╗ ████████╗
