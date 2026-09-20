@@ -42,6 +42,7 @@ import json  # For config and API responses
 import logging  # For logging actions and errors
 import mimetypes
 import os  # For environment variables and file paths
+import random
 import re  # For regex operations
 import sqlite3  # For usage tracking
 import sys  # For system exit and arguments
@@ -2373,9 +2374,19 @@ def main():
 
     # Print zapgpt logo/banner (user-facing, not logged) - only if not quiet
     if not args.quiet:
+        LOGO_COLORS = {
+            "indigo": "#6366F1",
+            "royal_blue": "#2563EB",
+            "violet": "#7C3AED",
+            "cyan_blue": "#0891B2",
+            "strong_indigo": "#4F46E5",
+        }
+
+        logo_color = random.choice(list(LOGO_COLORS.values()))
+
         console.print(
             f"""
-[bold yellow]
+[bold {logo_color}]
         ███████╗
        ████████╗
       █████████╗
@@ -2392,11 +2403,13 @@ def main():
      ╚█████╝
       ╚███╝
        ╚█╝
-[/bold yellow]
-[bold blue]╔══════════════════════════════════════════════════╗
+[/bold {logo_color}]
+[bold blue]╔═══════════════════════════════════════════════════╗
 ║ ⚡ [bold yellow]Zap[/bold yellow][bold white]GPT[/bold white] [dim]v{VERSION}[/dim] 🚀✨ Multi-provider AI automation 🛡️ ║
-╚══════════════════════════════════════════════════╝[/bold blue]
+╚═══════════════════════════════════════════════════╝[/bold blue]
 [Github](https://github.com/raj77in/zapgpt), Author: Amit Agarwal
+
+Go to repo to get the bash and zsh completion files.
             """,
             justify="center",
         )

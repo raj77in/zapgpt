@@ -1,0 +1,65 @@
+# Copy this file to : ~/.local/share/bash-completion/completions/zapgpt
+_zapgpt()
+{
+    local cur prev
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+
+    local prompt_dir="${HOME}/.config/zapgpt/prompts"
+    local -a prompts=()
+    local file
+
+    # Dynamically discover prompt names
+    if [[ -d "$prompt_dir" ]]; then
+        for file in "$prompt_dir"/*.json; do
+            [[ -f "$file" ]] || continue
+            file="${file##*/}"
+            prompts+=("${file%.json}")
+        done
+    fi
+
+    case "$prev" in
+        -up|--use-prompt|-sp|--show-prompt)
+            COMPREPLY=(
+                $(compgen -W "${prompts[*]}" -- "$cur")
+            )
+            return 0
+            ;;
+    esac
+
+    # Options
+    local options="
+        -h --help
+        -m --model
+        -up --use-prompt
+        -ndp --no-default
+        -xai --explain-AI
+        -lsp --list-prompt
+        -hi --history
+        -t --total
+        -lm --list-models
+        -lp --list-pricing
+        -fl --flex
+        -te --temp
+        -u --usage
+        -f --file
+        --files
+        -img --image
+        -ll --log-level
+        -q --quiet
+        -c --chat-id
+        -p --provider
+        -mt --max-tokens
+        -fi --filter
+        -ip --image-prompt
+        -is --image-size
+        -o --output
+        -cf --config
+        -sp --show-prompt
+        -url --url
+    "
+
+    COMPREPLY=($(compgen -W "$options" -- "$cur"))
+}
+
+complete -F _zapgpt zapgpt

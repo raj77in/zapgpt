@@ -1,0 +1,93 @@
+# Copy to file : ~/.zsh/completions/_zapgpt
+# Then make sure zsh searches your completion directory:
+
+# fpath=("$HOME/.zsh/completions" $fpath)
+#
+# autoload -Uz compinit
+# compinit
+
+#compdef zapgpt
+
+_zapgpt()
+{
+    local prompt_dir="${HOME}/.config/zapgpt/promtps"
+    local -a prompts
+    local -a models
+    local -a providers
+    local -a log_levels
+    local -a image_sizes
+
+    # Dynamically discover prompt names.
+    #
+    # N = null glob if no files exist
+    # t = basename
+    # r = remove extension
+    prompts=("${prompt_dir}"/*.json(N:t:r))
+
+    providers=(
+        openai
+        openrouter
+        together
+        replicate
+        deepinfra
+        github
+        local
+        omniroute
+    )
+
+    log_levels=(
+        DEBUG
+        INFO
+        WARNING
+        ERROR
+        CRITICAL
+    )
+
+    image_sizes=(
+        256x256
+        512x512
+        1024x1024
+        1024x1536
+        1536x1024
+        auto
+    )
+
+    _arguments -s -S \
+        '(-h --help)'{-h,--help}'[Show help]' \
+        '(-m --model)'{-m,--model}'[Specify model]:model:' \
+        '(-up --use-prompt)'{-up,--use-prompt}'[Specify prompt type]:prompt:->prompt' \
+        '(-ndp --no-default)'{-ndp,--no-default}'[Do not prepend default prompt]' \
+        '(-xai --explain-AI)'{-xai,--explain-AI}'[Explain AI reasoning]' \
+        '(-lsp --list-prompt)'{-lsp,--list-prompt}'[List all prompts]' \
+        '(-hi --history)'{-hi,--history}'[Display history]' \
+        '(-t --total)'{-t,--total}'[Show total cost]' \
+        '(-lm --list-models)'{-lm,--list-models}'[List available models]' \
+        '(-lp --list-pricing)'{-lp,--list-pricing}'[Show pricing]' \
+        '(-fl --flex)'{-fl,--flex}'[Enable flex mode]' \
+        '(-te --temp)'{-te,--temp}'[Set temperature]:temperature:' \
+        '(-u --usage)'{-u,--usage}'[Retrieve usage]:days:' \
+        '(-f --file)'{-f,--file}'[Input file]:file:_files' \
+        '--files[Provide two files]:file1:_files:file2:_files' \
+        '(-img --image)'{-img,--image}'[Input image]:image:_files' \
+        '(-ll --log-level)'{-ll,--log-level}'[Set log level]:level:(DEBUG INFO WARNING ERROR CRITICAL)' \
+        '(-q --quiet)'{-q,--quiet}'[Suppress console output]' \
+        '(-c --chat-id)'{-c,--chat-id}'[Continue chat session]:chat ID:' \
+        '(-p --provider)'{-p,--provider}'[Select provider]:provider:($providers)' \
+        '(-mt --max-tokens)'{-mt,--max-tokens}'[Maximum tokens]:tokens:' \
+        '(-fi --filter)'{-fi,--filter}'[Set filter]:filter:' \
+        '(-ip --image-prompt)'{-ip,--image-prompt}'[Image generation prompt]:prompt:' \
+        '(-is --image-size)'{-is,--image-size}'[Image size]:size:($image_sizes)' \
+        '(-o --output)'{-o,--output}'[Output file]:file:_files' \
+        '(-cf --config)'{-cf,--config}'[Show configuration directory]' \
+        '(-sp --show-prompt)'{-sp,--show-prompt}'[Show complete prompt]:prompt:->prompt' \
+        '-url[Override server URL]:URL:' \
+        '*:query:'
+
+    case "$state" in
+        prompt)
+            _describe 'prompt' prompts
+            ;;
+    esac
+}
+
+_zapgpt "$@"
