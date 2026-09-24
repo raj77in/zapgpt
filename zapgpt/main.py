@@ -1492,6 +1492,7 @@ class OpenRouterClient(BaseLLMClient):
         system_prompt: str = None,
         output: str = "",
         max_tokens: int = 4096,
+        chat_id: str = None,
         **kwargs,
     ):
         """
@@ -1517,6 +1518,7 @@ class OpenRouterClient(BaseLLMClient):
             max_tokens=max_tokens,
         )
         self.api_key = api_key
+        self.chat_id = chat_id
         logger.debug("using auto routing with lowest cost model")
         # self.system_prompt = system_prompt
         # logger.debug(f"system prompt {self.system_prompt=}")
@@ -1587,6 +1589,9 @@ class OpenRouterClient(BaseLLMClient):
             "max_tokens": self.max_tokens,
             "top_p": 1.0,
         }
+        if self.chat_id is not None:
+            params["extra_body"] = {"session_id": self.chat_id}
+
         logger.debug(f"Making request with {params=}")
         response = self.client.chat.completions.create(**params)
         logger.debug(f"{response=}")
@@ -2514,6 +2519,7 @@ Go to repo to get the bash and zsh completion files.
         output=args.output,
         max_tokens=args.max_tokens,
         url=args.url,
+        chat_id=args.chat_id,
     )
 
     if args.image_prompt:
@@ -2556,6 +2562,8 @@ Go to repo to get the bash and zsh completion files.
     if args.query:
         # Compose conversation with optional assistant_input
         prompt = args.query
+        chat_id = args.chat_id
+        logger.debug(f"Chat id is present as {chat_id=}")
         if assistant_input:
             # If the LLM client supports chat history, add assistant_input as the first assistant message
             if hasattr(llm_client, "chat_history") and isinstance(
