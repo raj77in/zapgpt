@@ -66,6 +66,7 @@ from rich.console import Console  # For rich terminal output
 from rich.logging import RichHandler  # For rich logging output
 from rich.markdown import Markdown  # For markdown rendering
 from rich.table import Table  # For pretty tables
+from rich.text import Text  # For inline table-match highlighting
 from rich_argparse import RichHelpFormatter  # For rich CLI help
 from tabulate import tabulate  # For table formatting
 
@@ -601,6 +602,40 @@ def fmt_colored(value):
         return str(value)
 
 
+def parse_filters(filter_value):
+    """Return non-empty, comma-separated filter terms in lowercase."""
+    if not filter_value:
+        return []
+    return [term.strip().lower() for term in filter_value.split(",") if term.strip()]
+
+
+def matches_filter(filter_value, *values):
+    """Return whether any filter term occurs in any supplied value.
+
+    Comma-separated filters use OR semantics, so ``gpt,claude`` highlights
+    entries containing either term. Matching is case-insensitive.
+    """
+    terms = parse_filters(filter_value)
+    if not terms:
+        return False
+    searchable_text = " ".join(str(value) for value in values).lower()
+    return any(term in searchable_text for term in terms)
+
+
+def highlight_filter_matches(value, filter_value):
+    """Return a value with matching filter terms shown in a subtle teal."""
+    text_value = str(value)
+    highlighted = Text(text_value)
+    for term in parse_filters(filter_value):
+        for match in re.finditer(re.escape(term), text_value, flags=re.IGNORECASE):
+            highlighted.stylize("bold bright_cyan", match.start(), match.end())
+    return highlighted
+
+
+# A muted background keeps matching rows easy to scan without the glare of yellow.
+FILTER_MATCH_STYLE = "bold on #3b4252"
+
+
 def get_filenames_without_extension(folder_path):
     """
     List all filenames in a folder without their extensions.
@@ -1078,11 +1113,11 @@ class BaseLLMClient:
 
     def list_available_models(self, batch=False, filter=None):
         """
-        List available models from the provider, optionally filtering.
+        List available models from the provider, highlighting filter matches.
         Belongs to: BaseLLMClient class.
         Args:
             batch (bool, optional): If True, return raw model data. Defaults to False.
-            filter (str, optional): Filter string for model names. Defaults to None.
+            filter (str, optional): Comma-separated terms to highlight. Defaults to None.
         Returns:
             list or None: List of models if batch is True, otherwise prints a table.
         """
@@ -1112,12 +1147,9 @@ class BaseLLMClient:
             )
             # print(f"* {m.id}, Owner: {m.owned_by}, Created: {m.created}")
             # table.append([ m.id, m.created, m.description, m.context_length, m.architecture["modality"], m.supported_parameters ])
-            if filter:
-                logger.debug(f"Filter is set to {filter=}")
-                logger.debug(f"m is {m=}")
-                if filter not in m.id and filter not in getattr(m, "name", ""):
-                    logger.debug(f"Fitlering out {m.id}")
-                    continue
+            is_match = matches_filter(filter, m.id, getattr(m, "name", ""))
+            if is_match:
+                logger.debug(f"Highlighting {m.id} due to filter {filter!r}")
             if hasattr(m, "context_length"):
                 cl = (
                     f"{int(m.context_length / 1000)} K"
@@ -1126,9 +1158,19 @@ class BaseLLMClient:
                 )
                 logger.debug(f"{m.context_length=} and {cl=}")
                 arch = m.architecture["modality"] if "architecture" in m else "NA"
-                rich_table.add_row(m.id, m.created, cl, arch)
+                rich_table.add_row(
+                    highlight_filter_matches(m.id, filter),
+                    m.created,
+                    cl,
+                    arch,
+                    style=FILTER_MATCH_STYLE if is_match else None,
+                )
             else:
-                rich_table.add_row(m.id, m.created)
+                rich_table.add_row(
+                    highlight_filter_matches(m.id, filter),
+                    m.created,
+                    style=FILTER_MATCH_STYLE if is_match else None,
+                )
         # print(tabulate(clean_table, headers=headers, tablefmt="fancy_grid", maxcolwidths=[20, 20, 35, 10, 10, 35, 10] ))
         # Table format options: plain, simple, grid, fancy_grid, github, pipe, orgtbl, mediawiki, rst, html, latex, jira, pretty
         console.print(rich_table)
@@ -1136,11 +1178,11 @@ class BaseLLMClient:
 
     def print_model_pricing_table(self, pricing_data, filter=None):
         """
-        Print a table of model pricing, optionally filtered.
+        Print a table of model pricing, highlighting filter matches.
         Belongs to: BaseLLMClient class.
         Args:
             pricing_data (dict): Dictionary with model pricing information.
-            filter (str, optional): Filter string for model names. Defaults to None.
+            filter (str, optional): Comma-separated terms to highlight. Defaults to None.
         """
         logger.debug("Printing model pricing table")
         rich_table = Table(title="Model Usage Costs")
@@ -1154,10 +1196,9 @@ class BaseLLMClient:
             pricing_data.items(), key=lambda x: sum(float(v) for v in x[1].values())
         )  # or x[1][3] if total is at index 3
         for model, prices in sorted_data:
-            if filter:
-                if filter not in model:
-                    logger.debug(f"Excluding {model} due to filter")
-                    continue
+            is_match = matches_filter(filter, model)
+            if is_match:
+                logger.debug(f"Highlighting {model} due to filter {filter!r}")
             logger.debug(f"Pricing for {model}: {prices}")
             pc = prices.get("prompt_tokens", 0)
             prompt_cost = float(pc) * 1000 if isinstance(pc, str) else pc
@@ -1169,10 +1210,11 @@ class BaseLLMClient:
                 f"{pretty(prompt_cost)} - {pretty(output_cost)} - {pretty(total)}"
             )
             rich_table.add_row(
-                model,
+                highlight_filter_matches(model, filter),
                 fmt_colored(prompt_cost),
                 fmt_colored(output_cost),
                 fmt_colored(total),
+                style=FILTER_MATCH_STYLE if is_match else None,
             )
 
         console.print(rich_table)
@@ -1727,11 +1769,11 @@ class GithubClient(BaseLLMClient):
 
     def list_available_models(self, batch=False, filter=None):
         """
-        List available models from GitHub AI, optionally filtering.
+        List available models from GitHub AI, highlighting filter matches.
         Belongs to: GithubClient class.
         Args:
             batch (bool, optional): If True, return raw model data. Defaults to False.
-            filter (str, optional): Filter string for model names. Defaults to None.
+            filter (str, optional): Comma-separated terms to highlight. Defaults to None.
         Returns:
             list or None: List of models if batch is True, otherwise prints a table.
         """
@@ -1756,18 +1798,17 @@ class GithubClient(BaseLLMClient):
             # Convert created to humban-readable formatting
             # print(f"* {m.id}, Owner: {m.owned_by}, Created: {m.created}")
             # table.append([ m.id, m.created, m.description, m.context_length, m.architecture["modality"], m.supported_parameters ])
-            if filter:
-                logger.debug(f"Filter is set to {filter=}")
-                if filter not in m["id"] and filter not in m["name"]:
-                    logger.debug(f"Fitlering out {m['id']}")
-                    continue
+            is_match = matches_filter(filter, m["id"], m["name"])
+            if is_match:
+                logger.debug(f"Highlighting {m['id']} due to filter {filter!r}")
             rich_table.add_row(
-                m["id"],
-                m["name"],
+                highlight_filter_matches(m["id"], filter),
+                highlight_filter_matches(m["name"], filter),
                 m["publisher"],
                 m["rate_limit_tier"],
                 ",".join(m["supported_input_modalities"]),
                 ",".join(m["supported_output_modalities"]),
+                style=FILTER_MATCH_STYLE if is_match else None,
             )
         # print(tabulate(clean_table, headers=headers, tablefmt="fancy_grid", maxcolwidths=[20, 20, 35, 10, 10, 35, 10] ))
         # Table format options: plain, simple, grid, fancy_grid, github, pipe, orgtbl, mediawiki, rst, html, latex, jira, pretty
@@ -2304,7 +2345,7 @@ def main():
         "-fi",
         "--filter",
         type=str,
-        help="Set the logging level.",
+        help="Highlight comma-separated model terms (for example: gpt,claude).",
     )
     parser.add_argument(
         "-ip",
