@@ -433,9 +433,7 @@ class TestOpenRouterClient:
             id="gen-example",
             model="openrouter/free",
             choices=[
-                SimpleNamespace(
-                    message=SimpleNamespace(content="Yes.", reasoning=None)
-                )
+                SimpleNamespace(message=SimpleNamespace(content="Yes.", reasoning=None))
             ],
             usage=SimpleNamespace(
                 prompt_tokens=4, completion_tokens=153, total_tokens=173
