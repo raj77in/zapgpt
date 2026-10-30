@@ -7,6 +7,8 @@ import os
 import sys
 from argparse import ArgumentTypeError
 from importlib import import_module
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 ## from unittest.mock import patch
 import pytest
@@ -409,6 +411,53 @@ class TestOpenRouterClient:
     def test_get_endpoint(self):
         client = OpenRouterClient(api_key="test-key")
         assert "openrouter.ai" in client.get_endpoint()
+
+    def test_handle_response_uses_generation_model_and_billed_cost(self, capsys):
+        """Aliases such as openrouter/free must not be used for accounting."""
+        client = object.__new__(OpenRouterClient)
+        client.model = "openrouter/free"
+        client.provider_name = "openrouter"
+        client.prompt_tokens = 999
+        client.query = "are you working?"
+        client.output = ""
+        client.show_reasoning = False
+        client.highlight_code = lambda text, lang: text
+        client.record_usage = MagicMock()
+        client.get_generation_metadata = lambda _generation_id: {
+            "model": "meta-llama/llama-3.3-70b-instruct",
+            "provider_name": "Example Provider",
+            "total_cost": 0.00012345,
+        }
+
+        response = SimpleNamespace(
+            id="gen-example",
+            model="openrouter/free",
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(content="Yes.", reasoning=None)
+                )
+            ],
+            usage=SimpleNamespace(
+                prompt_tokens=4, completion_tokens=153, total_tokens=173
+            ),
+        )
+        response.model_dump = lambda: {}
+
+        client.handle_response(response)
+
+        printed = capsys.readouterr().out
+        assert "Model: meta-llama/llama-3.3-70b-instruct" in printed
+        assert "Prompt tokens: 4" in printed
+        assert "Estimated cost: $0.00012345" in printed
+        client.record_usage.assert_called_once_with(
+            model="meta-llama/llama-3.3-70b-instruct",
+            provider="openrouter",
+            prompt_tokens=4.0,
+            completion_tokens=153.0,
+            total_tokens=173.0,
+            cost=0.00012345,
+            query="are you working?",
+        )
 
 
 # Test ReplicateClient

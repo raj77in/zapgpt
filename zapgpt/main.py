@@ -763,6 +763,7 @@ class BaseLLMClient:
             f"Initializing BaseLLMClient with model={model}, output={output}, file={file}, files={files}, image={image}, images={images}"
         )
         self.model = model
+        self.provider_name = "openai"
         self.system_prompt = system_prompt
         self.max_tokens = max_tokens if max_tokens else 0
         self.temperature = temperature
@@ -770,6 +771,9 @@ class BaseLLMClient:
         self.current_script_path = str(current_script_path)
         self.prompts_path = self.current_script_path + "/prompts"
         self.output = output
+        # Reasoning is opt-in because providers may return lengthy internal
+        # reasoning separately from the final answer.
+        self.show_reasoning = False
         logger.debug("File is set to {file=}")
         self.files = []
         if files:
@@ -1017,10 +1021,30 @@ class BaseLLMClient:
         logger.debug("Handling LLM response")
         logger.debug(f"{response.model_dump()}")
         logger.debug(f"Chat ID: {response.id}")
-        reply = response.choices[0].message.content
-        completion_tokens = float(response.usage.completion_tokens)
-        total_tokens = float(response.usage.total_tokens)
-        cost = self.get_price(self.model, self.prompt_tokens, completion_tokens)
+        if not response.choices:
+            raise ValueError("The LLM response did not contain any choices")
+
+        choice = response.choices[0]
+        reply = choice.message.content
+        reasoning = getattr(choice.message, "reasoning", None) or getattr(
+            choice.message, "reasoning_content", None
+        )
+        reasoning_only_response = False
+        if reply is None:
+            if reasoning and self.show_reasoning:
+                reply = reasoning
+                reasoning_only_response = True
+            else:
+                raise ValueError(
+                    "The LLM response did not contain final message content. "
+                    "Use --reason to display provider-supplied reasoning."
+                )
+        usage = response.usage
+        prompt_tokens = getattr(usage, "prompt_tokens", self.prompt_tokens)
+        completion_tokens = float(usage.completion_tokens)
+        total_tokens = float(usage.total_tokens)
+        model = self.get_response_model(response)
+        cost = self.get_response_cost(response, model, prompt_tokens, completion_tokens)
 
         if self.output:
             logger.info(f"Writing response to output file: {self.output}")
@@ -1029,27 +1053,42 @@ class BaseLLMClient:
         else:
             # In quiet mode, show only the raw response
             if output and output.quiet_mode:
+                if self.show_reasoning and reasoning and not reasoning_only_response:
+                    print(self.highlight_code(reasoning, lang="markdown"))
                 print(self.highlight_code(reply, lang="markdown"))
             else:
                 # Normal mode: show headers and usage info
-                print("\n--- RESPONSE ---\n")
-                print(self.highlight_code(reply, lang="markdown"))
+                if self.show_reasoning and reasoning:
+                    print("\n--- REASONING ---\n")
+                    print(self.highlight_code(reasoning, lang="markdown"))
+                if not reasoning_only_response:
+                    print("\n--- RESPONSE ---\n")
+                    print(self.highlight_code(reply, lang="markdown"))
                 print("\n--- USAGE ---")
                 print(f"Chat ID: {response.id}")
-                print(f"Prompt tokens: {self.prompt_tokens}")
+                print(f"Model: {model}")
+                print(f"Prompt tokens: {prompt_tokens}")
                 print(f"Completion tokens: {completion_tokens}")
                 print(f"Total tokens: {total_tokens}")
-                print(f"Estimated cost: ${cost:.5f}")
+                print(f"Estimated cost: ${cost:.8f}")
 
         self.record_usage(
-            model=self.model,
-            prompt_tokens=self.prompt_tokens,
+            model=model,
+            prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
             total_tokens=total_tokens,
             cost=cost,
             query=self.query,
-            provider="openai",
+            provider=self.provider_name,
         )
+
+    def get_response_cost(self, response, model, prompt_tokens, completion_tokens):
+        """Calculate a response cost when the provider did not supply one."""
+        return self.get_price(model, prompt_tokens, completion_tokens)
+
+    def get_response_model(self, response):
+        """Return the model named by a completed response."""
+        return getattr(response, "model", None) or self.model
 
     def add_to_history(self, role: str, content: str):
         """
@@ -1560,6 +1599,7 @@ class OpenRouterClient(BaseLLMClient):
             max_tokens=max_tokens,
         )
         self.api_key = api_key
+        self.provider_name = "openrouter"
         self.chat_id = chat_id
         logger.debug("using auto routing with lowest cost model")
         # self.system_prompt = system_prompt
@@ -1638,6 +1678,53 @@ class OpenRouterClient(BaseLLMClient):
         response = self.client.chat.completions.create(**params)
         logger.debug(f"{response=}")
         return response
+
+    def get_generation_metadata(self, generation_id: str) -> dict:
+        """Return OpenRouter's authoritative model and billed-cost metadata."""
+        try:
+            response = requests.get(
+                f"{self.get_endpoint()}generation",
+                headers={"Authorization": f"Bearer {self.api_key}"},
+                params={"id": generation_id},
+                timeout=5,
+            )
+            response.raise_for_status()
+            return response.json().get("data", {})
+        except requests.RequestException as error:
+            # Metadata can lag a just-finished completion. Preserve the reply
+            # and use response-derived estimates if it is not available.
+            logger.warning(
+                "Could not retrieve OpenRouter generation metadata for %s: %s",
+                generation_id,
+                error,
+            )
+            return {}
+
+    def get_response_model(self, response):
+        """Use the routed model, not an alias such as ``openrouter/free``."""
+        self._generation_metadata = self.get_generation_metadata(response.id)
+        return (
+            self._generation_metadata.get("model")
+            or getattr(response, "model", None)
+            or self.model
+        )
+
+    def get_response_cost(self, response, model, prompt_tokens, completion_tokens):
+        """Use OpenRouter's final billed cost, including routing adjustments."""
+        generation = getattr(self, "_generation_metadata", {})
+        cost = generation.get("total_cost")
+        if cost is not None:
+            provider = generation.get("provider_name")
+            logger.info(
+                "OpenRouter usage: model=%s, provider=%s, billed cost=%s",
+                model,
+                provider or "unknown",
+                cost,
+            )
+            return float(cost)
+        return super().get_response_cost(
+            response, model, prompt_tokens, completion_tokens
+        )
 
 
 class TogetherClient(OpenAIClient):
@@ -2326,6 +2413,12 @@ def main():
         help="Suppress all console output except the LLM response (useful for scripting).",
     )
     parser.add_argument(
+        "-r",
+        "--reason",
+        action="store_true",
+        help="Show provider-supplied reasoning before the final response.",
+    )
+    parser.add_argument(
         "-c", "--chat-id", default=None, help="Continue in same chat session"
     )
     parser.add_argument(
@@ -2562,6 +2655,7 @@ Go to repo to get the bash and zsh completion files.
         url=args.url,
         chat_id=args.chat_id,
     )
+    llm_client.show_reasoning = args.reason
 
     if args.image_prompt:
         if provider != "openai":
@@ -2622,7 +2716,7 @@ Go to repo to get the bash and zsh completion files.
                 prompt = f"{assistant_input}\n\n{args.query}"
         try:
             response = llm_client.send_request(prompt)
-            if response:
+            if response is not None:
                 logger.debug(f"Response: {response=}")
                 llm_client.handle_response(response)
             else:

@@ -88,6 +88,14 @@ class TestCLIFlags:
         output = result.stdout or result.stderr or ""
         assert "--model" in output or "-m" in output
 
+    def test_reason_flag(self):
+        """Test that --reason is available to show provider-supplied reasoning."""
+        result = run_zapgpt_command(["--help"])
+
+        assert result.returncode == 0
+        output = result.stdout or result.stderr or ""
+        assert "--reason" in output or "-r" in output
+
 
 class TestCLIFileInput:
     """Test CLI file input functionality"""
